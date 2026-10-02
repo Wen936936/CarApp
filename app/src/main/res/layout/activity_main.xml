@@ -7,6 +7,16 @@
     android:gravity="center"
     android:padding="24dp">
 
+    <!-- 摄像头画面展示区域，通过 WebSocket 接收后端推送的图像并实时显示 -->
+    <ImageView
+        android:id="@+id/ivCamera"
+        android:layout_width="match_parent"
+        android:layout_height="240dp"
+        android:scaleType="centerCrop"
+        android:background="#DDDDDD"
+        android:contentDescription="小车摄像头画面"
+        android:layout_marginBottom="16dp" />
+
     <!-- 状态提示文本，显示最近一次指令的发送结果 -->
     <TextView
         android:id="@+id/tvStatus"
