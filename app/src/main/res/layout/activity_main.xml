@@ -54,4 +54,12 @@
 
     </LinearLayout>
 
+    <!-- 后退按钮，单独一行居中，与前进按钮上下对称，形成十字形布局 -->
+    <Button
+        android:id="@+id/btnBackward"
+        android:layout_width="120dp"
+        android:layout_height="wrap_content"
+        android:text="后退"
+        android:layout_marginTop="16dp" />
+
 </LinearLayout>

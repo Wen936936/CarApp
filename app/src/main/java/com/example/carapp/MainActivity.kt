@@ -14,7 +14,7 @@ import java.io.IOException
 
 /**
  * 小车控制主界面
- * 通过 OkHttp 向后端发送 GET 请求控制小车前进、停止、左转、右转
+ * 通过 OkHttp 向后端发送 GET 请求控制小车前进、后退、停止、左转、右转
  */
 class MainActivity : AppCompatActivity() {
 
@@ -36,17 +36,19 @@ class MainActivity : AppCompatActivity() {
         val btnStop = findViewById<Button>(R.id.btnStop)
         val btnLeft = findViewById<Button>(R.id.btnLeft)
         val btnRight = findViewById<Button>(R.id.btnRight)
+        val btnBackward = findViewById<Button>(R.id.btnBackward)
 
-        // 绑定四个方向按钮的点击事件
+        // 绑定五个方向按钮的点击事件
         btnForward.setOnClickListener { sendCommand("forward") }
         btnStop.setOnClickListener { sendCommand("stop") }
         btnLeft.setOnClickListener { sendCommand("left") }
         btnRight.setOnClickListener { sendCommand("right") }
+        btnBackward.setOnClickListener { sendCommand("backward") }
     }
 
     /**
      * 向后端发送控制指令
-     * action 取值：forward / stop / left / right
+     * action 取值：forward / backward / stop / left / right
      */
     private fun sendCommand(action: String) {
         val url = "$baseUrl/car/command?action=$action"
