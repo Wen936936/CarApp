@@ -7,6 +7,7 @@ import android.util.Log
 import android.view.MotionEvent
 import android.widget.Button
 import android.widget.ImageView
+import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -82,6 +83,11 @@ class MainActivity : AppCompatActivity() {
         // 喇叭按钮：点击在 响/停 两个状态间切换
         btnBuzzer = findViewById(R.id.btnBuzzer)
         btnBuzzer.setOnClickListener { toggleBuzzer() }
+
+        // 图像处理开关：勾选状态变化时通知后端开启/关闭 YOLO/OpenCV 处理
+        findViewById<Switch>(R.id.swImageProcess).setOnCheckedChangeListener { _, isChecked ->
+            sendImageProcessSwitch(isChecked)
+        }
 
         // 页面创建时连接摄像头 WebSocket，开始接收图像推送
         connectCameraWebSocket()
@@ -272,6 +278,15 @@ class MainActivity : AppCompatActivity() {
                 btnBuzzer.text = if (isBuzzerOn) "喇叭：停" else "喇叭：响"
             }
         }
+    }
+
+    /**
+     * 发送图像处理开关指令：POST /car/image/process?enabled=true|false
+     * enabled 为 true 表示开启 YOLO/OpenCV 处理，false 表示关闭恢复原始画面
+     */
+    private fun sendImageProcessSwitch(enabled: Boolean) {
+        val description = if (enabled) "图像处理开启" else "图像处理关闭"
+        sendSimplePostCommand("$baseUrl/car/image/process?enabled=$enabled", description)
     }
 
     /**

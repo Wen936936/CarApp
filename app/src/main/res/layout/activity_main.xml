@@ -125,6 +125,14 @@
         android:layout_width="120dp"
         android:layout_height="wrap_content"
         android:text="喇叭：响"
+        android:layout_marginBottom="12dp" />
+
+    <!-- 图像处理开关：打开后通知后端对摄像头画面做 YOLO/OpenCV 处理，关闭则恢复原始画面 -->
+    <Switch
+        android:id="@+id/swImageProcess"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="图像处理（YOLO/OpenCV）"
         android:layout_marginBottom="24dp" />
 
     <!-- 前进按钮，单独一行居中 -->
