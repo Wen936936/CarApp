@@ -4,6 +4,7 @@ import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.util.Base64
 import android.util.Log
+import android.view.MotionEvent
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
@@ -13,6 +14,7 @@ import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
@@ -63,6 +65,18 @@ class MainActivity : AppCompatActivity() {
 
         // 页面创建时连接摄像头 WebSocket，开始接收图像推送
         connectCameraWebSocket()
+
+        // 给摄像头画面绑定触摸监听，点击画面可控制云台转向
+        ivCamera.setOnTouchListener { view, event ->
+            // 只在手指抬起（ACTION_UP）时触发，避免按下瞬间就发请求
+            if (event.action == MotionEvent.ACTION_UP) {
+                // 将触摸点坐标换算成 ImageView 上的百分比（0~100），并限制在合法范围内
+                val xPercent = (event.x / view.width * 100f).coerceIn(0f, 100f)
+                val yPercent = (100f - event.y / view.height * 100f).coerceIn(0f, 100f)
+                sendPtzCommand(xPercent, yPercent)
+            }
+            true
+        }
     }
 
     /**
@@ -161,6 +175,52 @@ class MainActivity : AppCompatActivity() {
             val msg = "发送指令异常：${e.message}"
             tvStatus.text = msg
             Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 向后端发送云台转向指令
+     * x、y 为点击位置在图像上的百分比坐标（0~100），通过 URL 查询参数传递（后端用 @RequestParam 接收）
+     */
+    private fun sendPtzCommand(x: Float, y: Float) {
+        val xInt = x.toInt()
+        val yInt = y.toInt()
+        val url = "$baseUrl/car/ptz?x=$xInt&y=$yInt"
+
+        // POST 请求体为空，参数全部拼在 URL 上
+        val emptyBody = "".toRequestBody(null)
+        val request = Request.Builder()
+            .url(url)
+            .post(emptyBody)
+            .build()
+
+        try {
+            // 使用异步请求，避免阻塞主线程
+            client.newCall(request).enqueue(object : Callback {
+
+                // 网络异常、连接失败等情况的回调
+                override fun onFailure(call: Call, e: IOException) {
+                    runOnUiThread {
+                        tvStatus.text = "云台指令发送失败：${e.message}"
+                    }
+                }
+
+                // 收到后端响应的回调
+                override fun onResponse(call: Call, response: Response) {
+                    response.use { res ->
+                        runOnUiThread {
+                            tvStatus.text = if (res.isSuccessful) {
+                                "云台指令发送成功（x=$xInt, y=$yInt）"
+                            } else {
+                                "云台指令发送失败，状态码：${res.code}"
+                            }
+                        }
+                    }
+                }
+            })
+        } catch (e: Exception) {
+            // 捕获构建请求或发起请求过程中可能出现的异常
+            tvStatus.text = "云台指令发送异常：${e.message}"
         }
     }
 }
