@@ -42,6 +42,10 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var tvStatus: TextView
     private lateinit var ivCamera: ImageView
+    private lateinit var btnBuzzer: Button
+
+    // 喇叭当前是否处于响的状态，用于点击按钮时在 响/停 之间切换
+    private var isBuzzerOn = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,6 +66,22 @@ class MainActivity : AppCompatActivity() {
         btnLeft.setOnClickListener { sendCommand("left") }
         btnRight.setOnClickListener { sendCommand("right") }
         btnBackward.setOnClickListener { sendCommand("backward") }
+
+        // LED 颜色按钮：红、绿、蓝、白、关
+        findViewById<Button>(R.id.btnLedRed).setOnClickListener { sendLedColor("red") }
+        findViewById<Button>(R.id.btnLedGreen).setOnClickListener { sendLedColor("green") }
+        findViewById<Button>(R.id.btnLedBlue).setOnClickListener { sendLedColor("blue") }
+        findViewById<Button>(R.id.btnLedWhite).setOnClickListener { sendLedColor("white") }
+        findViewById<Button>(R.id.btnLedOff).setOnClickListener { sendLedColor("off") }
+
+        // LED 模式按钮：常亮、流水灯、闪烁
+        findViewById<Button>(R.id.btnLedModeSteady).setOnClickListener { sendLedMode("steady") }
+        findViewById<Button>(R.id.btnLedModeFlow).setOnClickListener { sendLedMode("flow") }
+        findViewById<Button>(R.id.btnLedModeBlink).setOnClickListener { sendLedMode("blink") }
+
+        // 喇叭按钮：点击在 响/停 两个状态间切换
+        btnBuzzer = findViewById(R.id.btnBuzzer)
+        btnBuzzer.setOnClickListener { toggleBuzzer() }
 
         // 页面创建时连接摄像头 WebSocket，开始接收图像推送
         connectCameraWebSocket()
@@ -221,6 +241,80 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             // 捕获构建请求或发起请求过程中可能出现的异常
             tvStatus.text = "云台指令发送异常：${e.message}"
+        }
+    }
+
+    /**
+     * 发送 LED 颜色控制指令：POST /car/led?color=xxx
+     * color 取值：red / green / blue / white / off
+     */
+    private fun sendLedColor(color: String) {
+        sendSimplePostCommand("$baseUrl/car/led?color=$color", "LED颜色[$color]")
+    }
+
+    /**
+     * 发送 LED 模式控制指令：POST /car/led/mode?mode=xxx
+     * mode 取值：steady（常亮） / flow（流水灯） / blink（闪烁）
+     */
+    private fun sendLedMode(mode: String) {
+        sendSimplePostCommand("$baseUrl/car/led/mode?mode=$mode", "LED模式[$mode]")
+    }
+
+    /**
+     * 切换喇叭的 响/停 状态，并发送对应指令：POST /car/buzzer?action=on|off
+     */
+    private fun toggleBuzzer() {
+        val action = if (isBuzzerOn) "off" else "on"
+        sendSimplePostCommand("$baseUrl/car/buzzer?action=$action", "喇叭[$action]") { success ->
+            // 仅在请求成功时才切换状态和按钮文字，避免界面与实际状态不一致
+            if (success) {
+                isBuzzerOn = !isBuzzerOn
+                btnBuzzer.text = if (isBuzzerOn) "喇叭：停" else "喇叭：响"
+            }
+        }
+    }
+
+    /**
+     * 通用 POST 指令发送方法，用于 LED、喇叭等参数拼在 URL 上、请求体为空的接口
+     * url 请求地址，description 用于在 tvStatus 上显示的指令描述，onResult 请求结束后的回调（是否成功）
+     */
+    private fun sendSimplePostCommand(url: String, description: String, onResult: ((Boolean) -> Unit)? = null) {
+        val emptyBody = "".toRequestBody(null)
+        val request = Request.Builder()
+            .url(url)
+            .post(emptyBody)
+            .build()
+
+        try {
+            // 使用异步请求，避免阻塞主线程
+            client.newCall(request).enqueue(object : Callback {
+
+                // 网络异常、连接失败等情况的回调
+                override fun onFailure(call: Call, e: IOException) {
+                    runOnUiThread {
+                        tvStatus.text = "$description 发送失败：${e.message}"
+                        onResult?.invoke(false)
+                    }
+                }
+
+                // 收到后端响应的回调
+                override fun onResponse(call: Call, response: Response) {
+                    response.use { res ->
+                        runOnUiThread {
+                            tvStatus.text = if (res.isSuccessful) {
+                                "$description 发送成功"
+                            } else {
+                                "$description 发送失败，状态码：${res.code}"
+                            }
+                            onResult?.invoke(res.isSuccessful)
+                        }
+                    }
+                }
+            })
+        } catch (e: Exception) {
+            // 捕获构建请求或发起请求过程中可能出现的异常
+            tvStatus.text = "$description 发送异常：${e.message}"
+            onResult?.invoke(false)
         }
     }
 }

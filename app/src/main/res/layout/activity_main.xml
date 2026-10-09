@@ -25,7 +25,107 @@
         android:text="等待操作"
         android:textSize="16sp"
         android:gravity="center"
-        android:layout_marginBottom="32dp" />
+        android:layout_marginBottom="16dp" />
+
+    <!-- 灯光与喇叭控制区域标题 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="灯光与喇叭"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="8dp" />
+
+    <!-- LED 颜色按钮一排：红、绿、蓝、白、关 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginBottom="12dp">
+
+        <Button
+            android:id="@+id/btnLedRed"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:text="红" />
+
+        <Button
+            android:id="@+id/btnLedGreen"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:text="绿" />
+
+        <Button
+            android:id="@+id/btnLedBlue"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:text="蓝" />
+
+        <Button
+            android:id="@+id/btnLedWhite"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:text="白" />
+
+        <Button
+            android:id="@+id/btnLedOff"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="关" />
+
+    </LinearLayout>
+
+    <!-- LED 模式按钮一排：常亮、流水灯、闪烁 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginBottom="12dp">
+
+        <Button
+            android:id="@+id/btnLedModeSteady"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:text="常亮" />
+
+        <Button
+            android:id="@+id/btnLedModeFlow"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:text="流水灯" />
+
+        <Button
+            android:id="@+id/btnLedModeBlink"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="闪烁" />
+
+    </LinearLayout>
+
+    <!-- 喇叭按钮：单击在“响/停”两个状态间切换 -->
+    <Button
+        android:id="@+id/btnBuzzer"
+        android:layout_width="120dp"
+        android:layout_height="wrap_content"
+        android:text="喇叭：响"
+        android:layout_marginBottom="24dp" />
 
     <!-- 前进按钮，单独一行居中 -->
     <Button
