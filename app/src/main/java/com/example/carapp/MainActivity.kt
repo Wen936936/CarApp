@@ -4,9 +4,9 @@ import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.util.Base64
 import android.util.Log
-import android.view.MotionEvent
 import android.widget.Button
 import android.widget.ImageView
+import android.widget.SeekBar
 import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
@@ -89,20 +89,38 @@ class MainActivity : AppCompatActivity() {
             sendImageProcessSwitch(isChecked)
         }
 
+        // 机械臂归位按钮：让机械臂回到预设初始姿态
+        findViewById<Button>(R.id.btnArmReset).setOnClickListener { sendArmReset() }
+
+        // 机械臂 6 个关节滑动条（base、p1~p5），当前只更新数值显示，暂不发送指令
+        bindArmSeekBar(R.id.seekBase, R.id.tvBaseValue)
+        bindArmSeekBar(R.id.seekP1, R.id.tvP1Value)
+        bindArmSeekBar(R.id.seekP2, R.id.tvP2Value)
+        bindArmSeekBar(R.id.seekP3, R.id.tvP3Value)
+        bindArmSeekBar(R.id.seekP4, R.id.tvP4Value)
+        bindArmSeekBar(R.id.seekP5, R.id.tvP5Value)
+
         // 页面创建时连接摄像头 WebSocket，开始接收图像推送
         connectCameraWebSocket()
+    }
 
-        // 给摄像头画面绑定触摸监听，点击画面可控制云台转向
-        ivCamera.setOnTouchListener { view, event ->
-            // 只在手指抬起（ACTION_UP）时触发，避免按下瞬间就发请求
-            if (event.action == MotionEvent.ACTION_UP) {
-                // 将触摸点坐标换算成 ImageView 上的百分比（0~100），并限制在合法范围内
-                val xPercent = (event.x / view.width * 100f).coerceIn(0f, 100f)
-                val yPercent = (100f - event.y / view.height * 100f).coerceIn(0f, 100f)
-                sendPtzCommand(xPercent, yPercent)
+    /**
+     * 绑定单个机械臂关节滑动条：拖动时只同步右侧的数值显示
+     * 后续接入姿态控制接口后，可在这里追加发送请求的逻辑
+     */
+    private fun bindArmSeekBar(seekBarId: Int, valueTextViewId: Int) {
+        val seekBar = findViewById<SeekBar>(seekBarId)
+        val valueText = findViewById<TextView>(valueTextViewId)
+        // 初始化时先把当前进度显示出来，避免与布局里的默认文字不一致
+        valueText.text = seekBar.progress.toString()
+        seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                valueText.text = progress.toString()
             }
-            true
-        }
+
+            override fun onStartTrackingTouch(sb: SeekBar?) = Unit
+            override fun onStopTrackingTouch(sb: SeekBar?) = Unit
+        })
     }
 
     /**
@@ -205,49 +223,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 向后端发送云台转向指令
-     * x、y 为点击位置在图像上的百分比坐标（0~100），通过 URL 查询参数传递（后端用 @RequestParam 接收）
+     * 发送机械臂归位指令：POST /car/arm/reset
+     * 无参数，请求体为空，让机械臂回到预设初始姿态
      */
-    private fun sendPtzCommand(x: Float, y: Float) {
-        val xInt = x.toInt()
-        val yInt = y.toInt()
-        val url = "$baseUrl/car/ptz?x=$xInt&y=$yInt"
-
-        // POST 请求体为空，参数全部拼在 URL 上
-        val emptyBody = "".toRequestBody(null)
-        val request = Request.Builder()
-            .url(url)
-            .post(emptyBody)
-            .build()
-
-        try {
-            // 使用异步请求，避免阻塞主线程
-            client.newCall(request).enqueue(object : Callback {
-
-                // 网络异常、连接失败等情况的回调
-                override fun onFailure(call: Call, e: IOException) {
-                    runOnUiThread {
-                        tvStatus.text = "云台指令发送失败：${e.message}"
-                    }
-                }
-
-                // 收到后端响应的回调
-                override fun onResponse(call: Call, response: Response) {
-                    response.use { res ->
-                        runOnUiThread {
-                            tvStatus.text = if (res.isSuccessful) {
-                                "云台指令发送成功（x=$xInt, y=$yInt）"
-                            } else {
-                                "云台指令发送失败，状态码：${res.code}"
-                            }
-                        }
-                    }
-                }
-            })
-        } catch (e: Exception) {
-            // 捕获构建请求或发起请求过程中可能出现的异常
-            tvStatus.text = "云台指令发送异常：${e.message}"
-        }
+    private fun sendArmReset() {
+        sendSimplePostCommand("$baseUrl/car/arm/reset", "机械臂归位")
     }
 
     /**

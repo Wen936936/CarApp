@@ -1,183 +1,399 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 小车控制主界面布局 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- 小车控制主界面布局：外层用 ScrollView，控件较多时在窄屏上仍可滚动查看 -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:padding="24dp">
+    android:fillViewport="true">
 
-    <!-- 摄像头画面展示区域，通过 WebSocket 接收后端推送的图像并实时显示 -->
-    <ImageView
-        android:id="@+id/ivCamera"
-        android:layout_width="match_parent"
-        android:layout_height="240dp"
-        android:scaleType="centerCrop"
-        android:background="#DDDDDD"
-        android:contentDescription="小车摄像头画面"
-        android:layout_marginBottom="16dp" />
-
-    <!-- 状态提示文本，显示最近一次指令的发送结果 -->
-    <TextView
-        android:id="@+id/tvStatus"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="等待操作"
-        android:textSize="16sp"
-        android:gravity="center"
-        android:layout_marginBottom="16dp" />
-
-    <!-- 灯光与喇叭控制区域标题 -->
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="灯光与喇叭"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        android:gravity="center"
-        android:layout_marginBottom="8dp" />
-
-    <!-- LED 颜色按钮一排：红、绿、蓝、白、关 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:gravity="center"
-        android:layout_marginBottom="12dp">
+        android:padding="24dp">
 
-        <Button
-            android:id="@+id/btnLedRed"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginEnd="4dp"
-            android:text="红" />
+        <!-- 摄像头画面展示区域，通过 WebSocket 接收后端推送的图像并实时显示 -->
+        <ImageView
+            android:id="@+id/ivCamera"
+            android:layout_width="match_parent"
+            android:layout_height="240dp"
+            android:scaleType="centerCrop"
+            android:background="#DDDDDD"
+            android:contentDescription="小车摄像头画面"
+            android:layout_marginBottom="16dp" />
 
-        <Button
-            android:id="@+id/btnLedGreen"
-            android:layout_width="0dp"
+        <!-- 状态提示文本，显示最近一次指令的发送结果 -->
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginEnd="4dp"
-            android:text="绿" />
+            android:text="等待操作"
+            android:textSize="16sp"
+            android:gravity="center"
+            android:layout_marginBottom="16dp" />
 
-        <Button
-            android:id="@+id/btnLedBlue"
-            android:layout_width="0dp"
+        <!-- 灯光与喇叭控制区域标题 -->
+        <TextView
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginEnd="4dp"
-            android:text="蓝" />
+            android:text="灯光与喇叭"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginBottom="8dp" />
 
-        <Button
-            android:id="@+id/btnLedWhite"
-            android:layout_width="0dp"
+        <!-- LED 颜色按钮一排：红、绿、蓝、白、关 -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginEnd="4dp"
-            android:text="白" />
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="12dp">
 
-        <Button
-            android:id="@+id/btnLedOff"
-            android:layout_width="0dp"
+            <Button
+                android:id="@+id/btnLedRed"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="红" />
+
+            <Button
+                android:id="@+id/btnLedGreen"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="绿" />
+
+            <Button
+                android:id="@+id/btnLedBlue"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="蓝" />
+
+            <Button
+                android:id="@+id/btnLedWhite"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="白" />
+
+            <Button
+                android:id="@+id/btnLedOff"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="关" />
+
+        </LinearLayout>
+
+        <!-- LED 模式按钮一排：常亮、流水灯、闪烁 -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="关" />
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="12dp">
+
+            <Button
+                android:id="@+id/btnLedModeSteady"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="常亮" />
+
+            <Button
+                android:id="@+id/btnLedModeFlow"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="流水灯" />
+
+            <Button
+                android:id="@+id/btnLedModeBlink"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="闪烁" />
+
+        </LinearLayout>
+
+        <!-- 喇叭按钮：单击在“响/停”两个状态间切换 -->
+        <Button
+            android:id="@+id/btnBuzzer"
+            android:layout_width="120dp"
+            android:layout_height="wrap_content"
+            android:text="喇叭：响"
+            android:layout_marginBottom="12dp" />
+
+        <!-- 图像处理开关：打开后通知后端对摄像头画面做 YOLO/OpenCV 处理，关闭则恢复原始画面 -->
+        <Switch
+            android:id="@+id/swImageProcess"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="图像处理（YOLO/OpenCV）"
+            android:layout_marginBottom="24dp" />
+
+        <!-- ============ 机械臂控制区域 ============ -->
+        <!-- 机械臂控制区域标题 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="机械臂控制"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginBottom="8dp" />
+
+        <!-- 机械臂归位按钮：一键让机械臂回到预设初始姿态 -->
+        <Button
+            android:id="@+id/btnArmReset"
+            android:layout_width="120dp"
+            android:layout_height="wrap_content"
+            android:text="机械臂归位"
+            android:layout_marginBottom="12dp" />
+
+        <!-- 6 个关节滑动条（p1~p5 与 base），目前只做雏形：
+             拖动时仅更新右侧数值显示，暂不向后端发送指令 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+
+            <TextView
+                android:layout_width="56dp"
+                android:layout_height="wrap_content"
+                android:text="base"
+                android:textSize="14sp" />
+
+            <SeekBar
+                android:id="@+id/seekBase"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="180"
+                android:progress="90" />
+
+            <TextView
+                android:id="@+id/tvBaseValue"
+                android:layout_width="48dp"
+                android:layout_height="wrap_content"
+                android:text="90"
+                android:textSize="14sp"
+                android:gravity="end" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+
+            <TextView
+                android:layout_width="56dp"
+                android:layout_height="wrap_content"
+                android:text="p1"
+                android:textSize="14sp" />
+
+            <SeekBar
+                android:id="@+id/seekP1"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="180"
+                android:progress="90" />
+
+            <TextView
+                android:id="@+id/tvP1Value"
+                android:layout_width="48dp"
+                android:layout_height="wrap_content"
+                android:text="90"
+                android:textSize="14sp"
+                android:gravity="end" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+
+            <TextView
+                android:layout_width="56dp"
+                android:layout_height="wrap_content"
+                android:text="p2"
+                android:textSize="14sp" />
+
+            <SeekBar
+                android:id="@+id/seekP2"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="180"
+                android:progress="90" />
+
+            <TextView
+                android:id="@+id/tvP2Value"
+                android:layout_width="48dp"
+                android:layout_height="wrap_content"
+                android:text="90"
+                android:textSize="14sp"
+                android:gravity="end" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+
+            <TextView
+                android:layout_width="56dp"
+                android:layout_height="wrap_content"
+                android:text="p3"
+                android:textSize="14sp" />
+
+            <SeekBar
+                android:id="@+id/seekP3"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="180"
+                android:progress="90" />
+
+            <TextView
+                android:id="@+id/tvP3Value"
+                android:layout_width="48dp"
+                android:layout_height="wrap_content"
+                android:text="90"
+                android:textSize="14sp"
+                android:gravity="end" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+
+            <TextView
+                android:layout_width="56dp"
+                android:layout_height="wrap_content"
+                android:text="p4"
+                android:textSize="14sp" />
+
+            <SeekBar
+                android:id="@+id/seekP4"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="180"
+                android:progress="90" />
+
+            <TextView
+                android:id="@+id/tvP4Value"
+                android:layout_width="48dp"
+                android:layout_height="wrap_content"
+                android:text="90"
+                android:textSize="14sp"
+                android:gravity="end" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:layout_width="56dp"
+                android:layout_height="wrap_content"
+                android:text="p5"
+                android:textSize="14sp" />
+
+            <SeekBar
+                android:id="@+id/seekP5"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="180"
+                android:progress="90" />
+
+            <TextView
+                android:id="@+id/tvP5Value"
+                android:layout_width="48dp"
+                android:layout_height="wrap_content"
+                android:text="90"
+                android:textSize="14sp"
+                android:gravity="end" />
+
+        </LinearLayout>
+
+        <!-- ============ 机械臂控制区域结束 ============ -->
+
+        <!-- 前进按钮，单独一行居中 -->
+        <Button
+            android:id="@+id/btnForward"
+            android:layout_width="120dp"
+            android:layout_height="wrap_content"
+            android:text="前进"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 左转、停止、右转按钮放在同一行 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <Button
+                android:id="@+id/btnLeft"
+                android:layout_width="100dp"
+                android:layout_height="wrap_content"
+                android:text="左转"
+                android:layout_marginEnd="16dp" />
+
+            <Button
+                android:id="@+id/btnStop"
+                android:layout_width="100dp"
+                android:layout_height="wrap_content"
+                android:text="停止"
+                android:layout_marginEnd="16dp" />
+
+            <Button
+                android:id="@+id/btnRight"
+                android:layout_width="100dp"
+                android:layout_height="wrap_content"
+                android:text="右转" />
+
+        </LinearLayout>
+
+        <!-- 后退按钮，单独一行居中，与前进按钮上下对称，形成十字形布局 -->
+        <Button
+            android:id="@+id/btnBackward"
+            android:layout_width="120dp"
+            android:layout_height="wrap_content"
+            android:text="后退"
+            android:layout_marginTop="16dp" />
 
     </LinearLayout>
 
-    <!-- LED 模式按钮一排：常亮、流水灯、闪烁 -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:layout_marginBottom="12dp">
-
-        <Button
-            android:id="@+id/btnLedModeSteady"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginEnd="4dp"
-            android:text="常亮" />
-
-        <Button
-            android:id="@+id/btnLedModeFlow"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginEnd="4dp"
-            android:text="流水灯" />
-
-        <Button
-            android:id="@+id/btnLedModeBlink"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="闪烁" />
-
-    </LinearLayout>
-
-    <!-- 喇叭按钮：单击在“响/停”两个状态间切换 -->
-    <Button
-        android:id="@+id/btnBuzzer"
-        android:layout_width="120dp"
-        android:layout_height="wrap_content"
-        android:text="喇叭：响"
-        android:layout_marginBottom="12dp" />
-
-    <!-- 图像处理开关：打开后通知后端对摄像头画面做 YOLO/OpenCV 处理，关闭则恢复原始画面 -->
-    <Switch
-        android:id="@+id/swImageProcess"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="图像处理（YOLO/OpenCV）"
-        android:layout_marginBottom="24dp" />
-
-    <!-- 前进按钮，单独一行居中 -->
-    <Button
-        android:id="@+id/btnForward"
-        android:layout_width="120dp"
-        android:layout_height="wrap_content"
-        android:text="前进"
-        android:layout_marginBottom="16dp" />
-
-    <!-- 左转、停止、右转按钮放在同一行 -->
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center">
-
-        <Button
-            android:id="@+id/btnLeft"
-            android:layout_width="100dp"
-            android:layout_height="wrap_content"
-            android:text="左转"
-            android:layout_marginEnd="16dp" />
-
-        <Button
-            android:id="@+id/btnStop"
-            android:layout_width="100dp"
-            android:layout_height="wrap_content"
-            android:text="停止"
-            android:layout_marginEnd="16dp" />
-
-        <Button
-            android:id="@+id/btnRight"
-            android:layout_width="100dp"
-            android:layout_height="wrap_content"
-            android:text="右转" />
-
-    </LinearLayout>
-
-    <!-- 后退按钮，单独一行居中，与前进按钮上下对称，形成十字形布局 -->
-    <Button
-        android:id="@+id/btnBackward"
-        android:layout_width="120dp"
-        android:layout_height="wrap_content"
-        android:text="后退"
-        android:layout_marginTop="16dp" />
-
-</LinearLayout>
+</ScrollView>
