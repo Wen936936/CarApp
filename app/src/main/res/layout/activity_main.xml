@@ -394,6 +394,59 @@
             android:text="后退"
             android:layout_marginTop="16dp" />
 
+        <!-- ============ AI 对话区域 ============ -->
+        <!-- AI 对话区域标题 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="AI 对话"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="8dp" />
+
+        <!-- 聊天记录显示区：固定高度，内容超出后可上下滚动
+             （滚动能力由代码设置 ScrollingMovementMethod 开启） -->
+        <TextView
+            android:id="@+id/tvChatLog"
+            android:layout_width="match_parent"
+            android:layout_height="180dp"
+            android:background="#F5F5F5"
+            android:padding="8dp"
+            android:textSize="14sp"
+            android:gravity="top|start"
+            android:text=""
+            android:scrollbars="vertical"
+            android:layout_marginBottom="8dp" />
+
+        <!-- 输入框与发送按钮放在同一行，输入框占据剩余宽度 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <EditText
+                android:id="@+id/etChatInput"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="输入内容"
+                android:inputType="text"
+                android:maxLines="1"
+                android:layout_marginEnd="8dp" />
+
+            <Button
+                android:id="@+id/btnSendChat"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="发送" />
+
+        </LinearLayout>
+
+        <!-- ============ AI 对话区域结束 ============ -->
+
     </LinearLayout>
 
 </ScrollView>

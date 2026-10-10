@@ -4,7 +4,9 @@ import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.util.Base64
 import android.util.Log
+import android.text.method.ScrollingMovementMethod
 import android.widget.Button
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.SeekBar
 import android.widget.Switch
@@ -21,11 +23,13 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.json.JSONObject
 import java.io.IOException
+import java.net.URLEncoder
 
 /**
  * 小车控制主界面
  * 通过 OkHttp 向后端发送 GET 请求控制小车前进、后退、停止、左转、右转
  * 同时通过 WebSocket 接收后端推送的摄像头图像并实时显示
+ * 另外通过 WebSocket 接收 AI 回复，并用 POST 把聊天文字发送给 AI
  */
 class MainActivity : AppCompatActivity() {
 
@@ -35,15 +39,23 @@ class MainActivity : AppCompatActivity() {
     // 摄像头图像推送地址，模拟器中 10.0.2.2 指向宿主机
     private val cameraWsUrl = "ws://10.0.2.2:8080/ws/camera"
 
+    // AI 对话回复推送地址，与摄像头分成两条独立连接，互不影响
+    private val chatWsUrl = "ws://10.0.2.2:8080/ws/chat"
+
     // OkHttp 客户端，全局复用一个实例，避免重复创建连接池
     private val client = OkHttpClient()
 
     // 摄像头 WebSocket 连接实例，便于在页面销毁时关闭
     private var cameraWebSocket: WebSocket? = null
 
+    // AI 对话 WebSocket 连接实例，同样在页面销毁时关闭
+    private var chatWebSocket: WebSocket? = null
+
     private lateinit var tvStatus: TextView
     private lateinit var ivCamera: ImageView
     private lateinit var btnBuzzer: Button
+    private lateinit var tvChatLog: TextView
+    private lateinit var etChatInput: EditText
 
     // 喇叭当前是否处于响的状态，用于点击按钮时在 响/停 之间切换
     private var isBuzzerOn = false
@@ -100,8 +112,143 @@ class MainActivity : AppCompatActivity() {
         bindArmSeekBar(R.id.seekP4, R.id.tvP4Value)
         bindArmSeekBar(R.id.seekP5, R.id.tvP5Value)
 
+        // AI 对话区域：聊天记录框允许内部滚动，输入框与发送按钮绑定点击事件
+        tvChatLog = findViewById(R.id.tvChatLog)
+        // TextView 默认不可滚动，设置该 MovementMethod 后超出高度的内容可上下滑动查看
+        tvChatLog.movementMethod = ScrollingMovementMethod()
+        etChatInput = findViewById(R.id.etChatInput)
+        findViewById<Button>(R.id.btnSendChat).setOnClickListener { sendChatMessage() }
+
         // 页面创建时连接摄像头 WebSocket，开始接收图像推送
         connectCameraWebSocket()
+
+        // 页面创建时连接 AI 对话 WebSocket，开始接收 AI 回复
+        connectChatWebSocket()
+    }
+
+    /**
+     * 连接 AI 对话 WebSocket，接收后端推送的 AI 回复并追加到聊天记录
+     * 消息格式约定为 JSON：{"text": "AI 回复内容"}
+     */
+    private fun connectChatWebSocket() {
+        val request = Request.Builder()
+            .url(chatWsUrl)
+            .build()
+
+        try {
+            chatWebSocket = client.newWebSocket(request, object : WebSocketListener() {
+
+                // 连接建立成功
+                override fun onOpen(webSocket: WebSocket, response: Response) {
+                    runOnUiThread {
+                        Toast.makeText(this@MainActivity, "AI 对话已连接", Toast.LENGTH_SHORT).show()
+                    }
+                }
+
+                // 收到文本消息，解析嵌套 JSON 里的 msg.text 并追加到聊天记录
+                // 后端推送格式：{"op":"publish","topic":"/ai/reply","msg":{"text":"...","action":""}}
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    try {
+                        val json = JSONObject(text)
+
+                        // 同一条连接上可能推送多个 topic 的消息，只处理 AI 回复
+                        if (json.optString("topic") != "/ai/reply") {
+                            Log.d("ChatWS", "忽略非 AI 回复消息：$text")
+                            return
+                        }
+
+                        // 回复内容嵌在 msg 对象里，msg 不存在（如错误消息）时直接跳过
+                        val msg = json.optJSONObject("msg") ?: return
+                        val aiText = msg.optString("text")
+                        if (aiText.isEmpty()) return
+
+                        runOnUiThread { appendChatLog("AI：$aiText") }
+                    } catch (e: Exception) {
+                        // 解析失败时记录日志，避免单条异常消息导致连接中断
+                        Log.e("ChatWS", "AI 回复解析失败：${e.message}")
+                    }
+                }
+
+                // 连接异常或断开
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    runOnUiThread {
+                        tvStatus.text = "AI 对话连接失败：${t.message}"
+                    }
+                }
+            })
+        } catch (e: Exception) {
+            // 捕获构建连接过程中可能出现的异常
+            tvStatus.text = "AI 对话连接异常：${e.message}"
+        }
+    }
+
+    /**
+     * 把一行文字追加到聊天记录，并让记录框自动滚动到最新一行，方便看到最新回复
+     */
+    private fun appendChatLog(line: String) {
+        tvChatLog.append("$line\n")
+        // 内容更新后把滚动位置移到末尾，避免新消息被挡在可视区域之外
+        val scrollAmount = tvChatLog.layout?.let {
+            it.getLineTop(tvChatLog.lineCount) - tvChatLog.height
+        } ?: 0
+        if (scrollAmount > 0) {
+            tvChatLog.scrollTo(0, scrollAmount)
+        }
+    }
+
+    /**
+     * 读取输入框内容发送给 AI
+     * 1. 为空时不发送
+     * 2. 先在聊天记录里显示“我：xxx”并清空输入框，让操作有即时反馈
+     * 3. POST /car/ai/chat?text=xxx，AI 的回复由 WebSocket 推送
+     */
+    private fun sendChatMessage() {
+        val input = etChatInput.text.toString().trim()
+        if (input.isEmpty()) {
+            Toast.makeText(this, "请输入内容", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        appendChatLog("我：$input")
+        etChatInput.setText("")
+
+        // 中文等特殊字符不能直接拼进 URL，需要先做 URL 编码，否则后端可能收到乱码
+        val encodedText = URLEncoder.encode(input, "UTF-8")
+        val url = "$baseUrl/car/ai/chat?text=$encodedText"
+        val emptyBody = "".toRequestBody(null)
+        val request = Request.Builder()
+            .url(url)
+            .post(emptyBody)
+            .build()
+
+        try {
+            // 使用异步请求，避免阻塞主线程
+            client.newCall(request).enqueue(object : Callback {
+
+                // 网络异常、连接失败等情况的回调
+                override fun onFailure(call: Call, e: IOException) {
+                    runOnUiThread {
+                        tvStatus.text = "发送给 AI 失败：${e.message}"
+                    }
+                }
+
+                // 收到后端响应的回调，这里只关心是否发送成功，AI 回复走 WebSocket
+                override fun onResponse(call: Call, response: Response) {
+                    response.use { res ->
+                        runOnUiThread {
+                            tvStatus.text = if (res.isSuccessful) {
+                                "已发送给 AI"
+                            } else {
+                                "发送给 AI 失败，状态码：${res.code}"
+                            }
+                        }
+                    }
+                }
+            })
+        } catch (e: Exception) {
+            // 捕获构建请求或发起请求过程中可能出现的异常
+            tvStatus.text = "发送给 AI 异常：${e.message}"
+        }
     }
 
     /**
@@ -174,6 +321,7 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         // 页面销毁时关闭 WebSocket，避免内存泄漏和无效连接
         cameraWebSocket?.close(1000, "页面关闭")
+        chatWebSocket?.close(1000, "页面关闭")
     }
 
     /**
