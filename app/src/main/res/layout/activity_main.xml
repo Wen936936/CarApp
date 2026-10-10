@@ -13,14 +13,62 @@
         android:padding="24dp">
 
         <!-- 摄像头画面展示区域，通过 WebSocket 接收后端推送的图像并实时显示 -->
-        <ImageView
-            android:id="@+id/ivCamera"
+        <!-- 外面包一层 FrameLayout：画面本身铺满容器，后面要做缩放/叠加控件时也有地方放 -->
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="240dp"
-            android:scaleType="centerCrop"
-            android:background="#DDDDDD"
-            android:contentDescription="小车摄像头画面"
-            android:layout_marginBottom="16dp" />
+            android:layout_marginBottom="8dp">
+
+            <ImageView
+                android:id="@+id/ivCamera"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="matrix"
+                android:background="#DDDDDD"
+                android:contentDescription="小车摄像头画面" />
+
+        </FrameLayout>
+
+        <!-- 相机操作按钮一排：放大、缩小、拍照、录像（录像开始后文字变为“停止录像”） -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="16dp">
+
+            <Button
+                android:id="@+id/btnZoomIn"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="放大" />
+
+            <Button
+                android:id="@+id/btnZoomOut"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="缩小" />
+
+            <Button
+                android:id="@+id/btnSnap"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="拍照" />
+
+            <Button
+                android:id="@+id/btnRecord"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="录像" />
+
+        </LinearLayout>
 
         <!-- 状态提示文本，显示最近一次指令的发送结果 -->
         <TextView

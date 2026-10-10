@@ -1,11 +1,19 @@
 package com.example.carapp
 
+import android.content.ContentValues
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.drawable.BitmapDrawable
 import android.os.Bundle
+import android.os.Build
+import android.os.Environment
+import android.os.Handler
+import android.os.Looper
+import android.provider.MediaStore
 import android.util.Base64
 import android.util.Log
 import android.text.method.ScrollingMovementMethod
@@ -74,6 +82,32 @@ class MainActivity : AppCompatActivity() {
 
     // 喇叭当前是否处于响的状态，用于点击按钮时在 响/停 之间切换
     private var isBuzzerOn = false
+
+    // ============ 相机基本功能相关 ============
+
+    // 拍照、录像按钮，录像按钮的文字需要在运行时切换，所以存成成员变量
+    private lateinit var btnRecord: Button
+
+    // 画面缩放矩阵，每次缩放都重新算一遍再赋给 ivCamera
+    private val cameraMatrix = Matrix()
+
+    // 当前缩放倍数，限制在 0.5 ~ 3.0 之间，对应布局里各控件的显示尺寸
+    private var cameraScale = 1.0f
+
+    // 模拟录像：用主线程 Handler 每 500ms 抓一帧，帧序列存在内存 List 里
+    private val recordHandler = Handler(Looper.getMainLooper())
+    private val recordFrames = ArrayList<Bitmap>()
+    private var isRecording = false
+    // 抓帧任务，抽成字段是为了停止录像时能 removeCallbacks 掉
+    private val recordTask = object : Runnable {
+        override fun run() {
+            // 抓一帧当前画面存进帧序列，抓完再排下一次，形成 500ms 一次的循环
+            captureCameraBitmap()?.let { recordFrames.add(it) }
+            if (isRecording) {
+                recordHandler.postDelayed(this, 500)
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -146,6 +180,180 @@ class MainActivity : AppCompatActivity() {
 
         // 页面创建时连接 AI 对话 WebSocket，开始接收 AI 回复
         connectChatWebSocket()
+
+        // ============ 相机基本功能：缩放 / 拍照 / 录像 ============
+        // 放大：在当前倍数上乘 1.2
+        findViewById<Button>(R.id.btnZoomIn).setOnClickListener { zoomCamera(1.2f) }
+        // 缩小：在当前倍数上除 1.2
+        findViewById<Button>(R.id.btnZoomOut).setOnClickListener { zoomCamera(1f / 1.2f) }
+        // 拍照：把当前画面存进系统相册
+        findViewById<Button>(R.id.btnSnap).setOnClickListener { saveCameraBitmapToGallery() }
+        // 录像：开始/停止之间切换
+        btnRecord = findViewById(R.id.btnRecord)
+        btnRecord.setOnClickListener { toggleRecording() }
+    }
+
+    /**
+     * 缩放摄像头画面：在当前倍数上乘以 factor，并限制在 0.5 ~ 3.0 之间
+     */
+    private fun zoomCamera(factor: Float) {
+        cameraScale = (cameraScale * factor).coerceIn(0.5f, 3.0f)
+        applyCameraMatrix()
+    }
+
+    /**
+     * 按当前 cameraScale 重新计算 ivCamera 的显示矩阵
+     *
+     * 布局里 ivCamera 的 scaleType 是 matrix，这时 ImageView 只会照搬 imageMatrix，
+     * 所以“等比铺满（centerCrop）”这件事需要我们自己算：
+     * 1. base 是铺满容器所需的最小倍数，取宽高两个方向中较大的那个，保证不留黑边；
+     * 2. 再乘上用户的缩放倍数 cameraScale；
+     * 3. 最后把缩放后的图片居中，平移量为 (容器尺寸 - 图片尺寸) / 2。
+     *
+     * 注意：矩阵只影响“显示”，不改变 drawable 里的原始 Bitmap，
+     * 因此 WebSocket 每帧 setImageBitmap 之后重新调一次本方法即可，两者互不干扰。
+     */
+    private fun applyCameraMatrix() {
+        val drawable = ivCamera.drawable as? BitmapDrawable ?: return
+        val bitmap = drawable.bitmap ?: return
+        val viewWidth = ivCamera.width
+        val viewHeight = ivCamera.height
+        // 控件还没测量完成，或位图尺寸异常时直接跳过，避免除零和算出 NaN
+        if (viewWidth <= 0 || viewHeight <= 0 ||
+            bitmap.width <= 0 || bitmap.height <= 0
+        ) {
+            return
+        }
+
+        // 等比铺满容器的基础倍数：取宽高方向所需倍数的较大值
+        val baseScale = maxOf(
+            viewWidth.toFloat() / bitmap.width,
+            viewHeight.toFloat() / bitmap.height
+        )
+        val totalScale = baseScale * cameraScale
+
+        cameraMatrix.reset()
+        cameraMatrix.setScale(totalScale, totalScale)
+        // 缩放后居中显示
+        cameraMatrix.postTranslate(
+            (viewWidth - bitmap.width * totalScale) / 2f,
+            (viewHeight - bitmap.height * totalScale) / 2f
+        )
+        ivCamera.imageMatrix = cameraMatrix
+    }
+
+    /**
+     * 取出 ivCamera 当前显示的 Bitmap
+     * 画面是从 WebSocket 收到的帧，ImageView 里存的就是原始位图，直接取出来用即可
+     * 没有画面（还没收到第一帧）时返回 null
+     */
+    private fun captureCameraBitmap(): Bitmap? {
+        val drawable = ivCamera.drawable as? BitmapDrawable ?: return null
+        return drawable.bitmap
+    }
+
+    /**
+     * 拍照：把当前画面以 JPEG 写入系统相册（MediaStore）
+     * JPEG 压缩和磁盘写入都比较耗时，放到子线程做，完成后回主线程弹 Toast
+     */
+    private fun saveCameraBitmapToGallery() {
+        // 用 ?: 提前返回，把下面的代码都收进非空分支，省掉反复判空
+        val bitmap = captureCameraBitmap() ?: run {
+            Toast.makeText(this, "还没有画面，无法拍照", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val displayName = "carapp_${System.currentTimeMillis()}.jpg"
+
+        // 写相册属于磁盘操作，不能在主线程做，否则可能卡顿甚至 ANR
+        Thread {
+            var success = false
+            try {
+                val values = ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME, displayName)
+                    put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        // Android 10 起走分区存储，指定子目录即可，不再需要写权限
+                        put(
+                            MediaStore.Images.Media.RELATIVE_PATH,
+                            Environment.DIRECTORY_PICTURES + "/CarApp"
+                        )
+                        // 标记为"写入中"，写完再置 0，避免相册扫到半截文件
+                        put(MediaStore.Images.Media.IS_PENDING, 1)
+                    }
+                }
+
+                val resolver = contentResolver
+                val uri = resolver.insert(
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    values
+                )
+                if (uri == null) {
+                    Log.e("Snap", "插入 MediaStore 失败，uri 为空")
+                } else {
+                    resolver.openOutputStream(uri)?.use { output ->
+                        // 90 的质量在清晰度和体积之间比较平衡
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)
+                        success = true
+                    }
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        // 写入结束，清除 pending 标记，照片才会正式出现在相册里
+                        val done = ContentValues().apply {
+                            put(MediaStore.Images.Media.IS_PENDING, 0)
+                        }
+                        resolver.update(uri, done, null, null)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("Snap", "保存照片失败：${e.message}")
+            }
+
+            runOnUiThread {
+                val msg = if (success) "已保存到相册" else "保存失败，请查看日志"
+                Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+                Log.d("Snap", msg)
+            }
+        }.start()
+    }
+
+    /**
+     * 录像按钮：在开始/停止之间切换
+     * 当前为模拟实现——不开真正的编码器，只是每 500ms 抓一帧存进内存
+     * 后续要改成真 MP4 的话，把 recordTask 换成 MediaRecorder / MediaCodec 即可
+     */
+    private fun toggleRecording() {
+        if (isRecording) {
+            stopRecording()
+        } else {
+            startRecording()
+        }
+    }
+
+    /**
+     * 开始录像：清空上一轮的帧，把按钮文字换成“停止录像”，并启动定时抓帧
+     */
+    private fun startRecording() {
+        // 先清掉上一轮残留的帧，避免两次录像的帧混在一起
+        recordFrames.clear()
+        isRecording = true
+        btnRecord.text = "停止录像"
+        Toast.makeText(this, "开始录像", Toast.LENGTH_SHORT).show()
+        // 先等一个周期再抓第一帧，避免点击瞬间就抓到和上一轮重复的画面
+        recordHandler.postDelayed(recordTask, 500)
+    }
+
+    /**
+     * 停止录像：停掉定时任务，报告一共抓了多少帧
+     */
+    private fun stopRecording() {
+        isRecording = false
+        // 只置标志位不够，已排队的任务还会再跑一次，必须显式移除
+        recordHandler.removeCallbacks(recordTask)
+        btnRecord.text = "录像"
+        Toast.makeText(this, "录像结束，共 ${recordFrames.size} 帧", Toast.LENGTH_SHORT).show()
+        Log.d("Record", "录像结束，共 ${recordFrames.size} 帧")
+        recordFrames.clear()
     }
 
     /**
@@ -563,7 +771,12 @@ class MainActivity : AppCompatActivity() {
                         val imageBytes = Base64.decode(base64Image, Base64.DEFAULT)
                         val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
                         if (bitmap != null) {
-                            runOnUiThread { ivCamera.setImageBitmap(bitmap) }
+                            runOnUiThread {
+                                ivCamera.setImageBitmap(bitmap)
+                                // 新位图会顶掉旧的显示矩阵，这里按当前缩放倍数重算一次，
+                                // 保证用户放大后画面不会因为新帧到来而跳回原始大小
+                                applyCameraMatrix()
+                            }
                         }
                     } catch (e: Exception) {
                         // 解析或解码失败时记录日志，避免单帧异常导致连接中断
@@ -589,6 +802,14 @@ class MainActivity : AppCompatActivity() {
         // 页面销毁时关闭 WebSocket，避免内存泄漏和无效连接
         cameraWebSocket?.close(1000, "页面关闭")
         chatWebSocket?.close(1000, "页面关闭")
+
+        // 页面被销毁时若还在"录像"，停掉定时抓帧并释放帧序列，
+        // 否则 Handler 会一直持有 Activity 引用导致内存泄漏
+        if (isRecording) {
+            isRecording = false
+            recordHandler.removeCallbacks(recordTask)
+        }
+        recordFrames.clear()
     }
 
     /**
