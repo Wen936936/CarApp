@@ -447,6 +447,43 @@
 
         <!-- ============ AI 对话区域结束 ============ -->
 
+        <!-- ============ SLAM 地图区域 ============ -->
+        <!-- SLAM 地图区域标题 -->
+        <TextView
+            android:id="@+id/tvMapTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="SLAM 地图（占位）"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="8dp" />
+
+        <!-- 地图显示区：由代码用 Canvas 画格子图，点击可发送导航目标点 -->
+        <!-- scaleType 用 fitXY 是为了让 8x8 等比的地图铺满区域，配合 handleMapTouch 里的按比例换算 -->
+        <!-- 地图背景改成白色，与位图底色一致，避免周围露出灰色边框被误认为"空白" -->
+        <ImageView
+            android:id="@+id/ivMap"
+            android:layout_width="match_parent"
+            android:layout_height="240dp"
+            android:scaleType="fitXY"
+            android:background="#FFFFFF"
+            android:contentDescription="SLAM 地图"
+            android:layout_marginBottom="8dp" />
+
+        <!-- 地图状态提示：显示加载结果与点击导航的发送结果 -->
+        <TextView
+            android:id="@+id/tvMapStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="地图未加载"
+            android:textSize="14sp"
+            android:gravity="center"
+            android:layout_marginBottom="16dp" />
+
+        <!-- ============ SLAM 地图区域结束 ============ -->
+
     </LinearLayout>
 
 </ScrollView>

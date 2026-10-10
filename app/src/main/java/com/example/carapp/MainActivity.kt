@@ -1,10 +1,15 @@
 package com.example.carapp
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import android.os.Bundle
 import android.util.Base64
 import android.util.Log
 import android.text.method.ScrollingMovementMethod
+import android.view.MotionEvent
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
@@ -21,6 +26,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.net.URLEncoder
@@ -56,6 +62,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnBuzzer: Button
     private lateinit var tvChatLog: TextView
     private lateinit var etChatInput: EditText
+
+    // SLAM 地图相关控件
+    private lateinit var tvMapTitle: TextView
+    private lateinit var ivMap: ImageView
+    private lateinit var tvMapStatus: TextView
+
+    // 从后端拉到的地图尺寸，点击地图时用它们把像素换算成地图格子坐标
+    private var mapWidth = 0
+    private var mapHeight = 0
 
     // 喇叭当前是否处于响的状态，用于点击按钮时在 响/停 之间切换
     private var isBuzzerOn = false
@@ -119,11 +134,263 @@ class MainActivity : AppCompatActivity() {
         etChatInput = findViewById(R.id.etChatInput)
         findViewById<Button>(R.id.btnSendChat).setOnClickListener { sendChatMessage() }
 
+        // SLAM 地图区域：绑定控件，拉取地图数据，并给地图加上点击选点事件
+        tvMapTitle = findViewById(R.id.tvMapTitle)
+        ivMap = findViewById(R.id.ivMap)
+        tvMapStatus = findViewById(R.id.tvMapStatus)
+        ivMap.setOnTouchListener { _, event -> handleMapTouch(event) }
+        loadMap()
+
         // 页面创建时连接摄像头 WebSocket，开始接收图像推送
         connectCameraWebSocket()
 
         // 页面创建时连接 AI 对话 WebSocket，开始接收 AI 回复
         connectChatWebSocket()
+    }
+
+    /**
+     * 处理地图上的触摸事件，只在手指抬起（ACTION_UP）时触发导航
+     * 这样拖动滚动页面时不会误发目标点，只有真正的点击才生效
+     */
+    private fun handleMapTouch(event: MotionEvent): Boolean {
+        if (event.action != MotionEvent.ACTION_UP) return true
+
+        // 地图未加载成功时无法换算坐标，直接忽略点击
+        if (mapWidth <= 0 || mapHeight <= 0) {
+            tvMapStatus.text = "地图尚未加载，无法选点"
+            return true
+        }
+
+        val viewWidth = ivMap.width
+        val viewHeight = ivMap.height
+        if (viewWidth <= 0 || viewHeight <= 0) return true
+
+        // 触摸点在 ImageView 内按比例换算成地图格子坐标
+        // 用 coerceIn 限制在合法范围内，避免点到边缘时算出越界坐标
+        val x = ((event.x / viewWidth) * mapWidth).toInt().coerceIn(0, mapWidth - 1)
+        val y = ((event.y / viewHeight) * mapHeight).toInt().coerceIn(0, mapHeight - 1)
+
+        tvMapStatus.text = "已选目标点：x=$x, y=$y，发送中…"
+        sendNavGoal(x, y)
+        return true
+    }
+
+    /**
+     * 从后端拉取假地图数据：GET /car/map
+     * 返回 JSON 形如：{"width":8,"height":8,"data":[100,100,0,...]}
+     * data 按行优先排列，0 表示空地（白块），100 表示障碍（黑块）
+     */
+    private fun loadMap() {
+        val request = Request.Builder()
+            .url("$baseUrl/car/map")
+            .get()
+            .build()
+
+        try {
+            // 使用异步请求，避免阻塞主线程
+            client.newCall(request).enqueue(object : Callback {
+
+                // 网络异常、连接失败等情况的回调
+                override fun onFailure(call: Call, e: IOException) {
+                    runOnUiThread {
+                        tvMapStatus.text = "地图加载失败：${e.message}"
+                    }
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    response.use { res ->
+                        // 请求失败时不用读 body，直接在界面提示状态码
+                        if (!res.isSuccessful) {
+                            runOnUiThread {
+                                tvMapStatus.text = "地图加载失败，状态码：${res.code}"
+                            }
+                            return
+                        }
+
+                        val body = res.body?.string() ?: ""
+                        // 打印原始响应，方便对比后端到底返回了什么结构
+                        Log.d("Map", "地图原始响应：$body")
+                        // 解析和绘图比较耗时，放到子线程做，画好后再回主线程贴图
+                        try {
+                            val json = JSONObject(body)
+                            val width = json.getInt("width")
+                            val height = json.getInt("height")
+                            val dataArray = json.getJSONArray("data")
+
+                            // 统计障碍格数量，用于判断是否"解析成功但画面全白"
+                            // 后端约定非 0 即障碍（历史上是 1，现在是 100），所以按 != 0 统计
+                            val cells = flattenMapData(dataArray)
+                            val obstacleCount = cells.count { it != 0 }
+                            Log.d(
+                                "Map",
+                                "地图尺寸 ${width}x${height}，data 元素 ${dataArray.length()} 个，" +
+                                    "拍平后 ${cells.size} 个，其中障碍 $obstacleCount 个"
+                            )
+
+                            // 解析成功但数据为空或长度对不上，属于后端返回格式不对，明确提示而不是静默画白图
+                            if (cells.isEmpty()) {
+                                runOnUiThread {
+                                    tvMapStatus.text = "地图数据为空，请检查后端 /car/map 的 data 字段"
+                                }
+                                return
+                            }
+
+                            val bitmap = drawMapBitmap(width, height, dataArray)
+                            mapWidth = width
+                            mapHeight = height
+
+                            runOnUiThread {
+                                ivMap.setImageBitmap(bitmap)
+                                tvMapStatus.text = if (obstacleCount == 0) {
+                                    // 全是空地时提示一下，避免用户以为地图没画出来
+                                    "地图已加载：${width} x ${height}（全部为空地），点击地图选目标点"
+                                } else {
+                                    "地图已加载：${width} x ${height}，障碍 $obstacleCount 个，点击地图选目标点"
+                                }
+                            }
+                        } catch (e: Exception) {
+                            // JSON 字段缺失或格式不对时提示，避免界面一直停在旧状态
+                            Log.e("Map", "地图解析失败：${e.message}")
+                            runOnUiThread {
+                                tvMapStatus.text = "地图数据解析失败：${e.message}"
+                            }
+                        }
+                    }
+                }
+            })
+        } catch (e: Exception) {
+            // 捕获构建请求或发起请求过程中可能出现的异常
+            tvMapStatus.text = "地图请求异常：${e.message}"
+        }
+    }
+
+    /**
+     * 把地图格子数据画成一张 Bitmap：非 0 画黑块（障碍），0 画白块（空地）
+     * width/height 为格子数，data 为按行优先排列的格子值数组
+     */
+    private fun drawMapBitmap(width: Int, height: Int, data: JSONArray): Bitmap {
+        // 每个格子占多少像素。原来只有 8，拉伸到 ImageView 后线条会糊成一片，放大到 40 更清晰
+        val cellSize = 40
+        val bitmap = Bitmap.createBitmap(width * cellSize, height * cellSize, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        // 先铺一层白色底，保证 0 的位置是白块
+        canvas.drawColor(Color.WHITE)
+
+        val paint = Paint()
+
+        // 兼容扁平数组 [0,1,...] 和嵌套数组 [[0,1],[1,0]] 两种格式，统一拍平后按行优先取值
+        val cells = flattenMapData(data)
+
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val index = y * width + x
+                // 数据长度不足时按空白处理，避免越界崩溃
+                if (index >= cells.size) continue
+                // 非 0 一律当障碍画黑块（后端目前用 100 表示障碍，0 表示空地）
+                if (cells[index] != 0) {
+                    paint.color = Color.BLACK
+                    canvas.drawRect(
+                        (x * cellSize).toFloat(),
+                        (y * cellSize).toFloat(),
+                        ((x + 1) * cellSize).toFloat(),
+                        ((y + 1) * cellSize).toFloat(),
+                        paint
+                    )
+                }
+            }
+        }
+
+        // 画灰色网格线。这一步是关键：即使地图全是空地（全 0），也能看出 8x8 的格子结构，
+        // 不会像一张白纸那样让人以为"图没加载出来"
+        paint.style = Paint.Style.STROKE
+        paint.color = Color.parseColor("#999999")
+        paint.strokeWidth = 1f
+        for (x in 0..width) {
+            val px = (x * cellSize).toFloat()
+            canvas.drawLine(px, 0f, px, (height * cellSize).toFloat(), paint)
+        }
+        for (y in 0..height) {
+            val py = (y * cellSize).toFloat()
+            canvas.drawLine(0f, py, (width * cellSize).toFloat(), py, paint)
+        }
+
+        // 外边框加粗描边，让地图边界更明显
+        paint.color = Color.parseColor("#333333")
+        paint.strokeWidth = 3f
+        canvas.drawRect(
+            1.5f,
+            1.5f,
+            (width * cellSize) - 1.5f,
+            (height * cellSize) - 1.5f,
+            paint
+        )
+
+        return bitmap
+    }
+
+    /**
+     * 把地图 data 统一拍平成一维 Int 列表
+     * 后端可能返回扁平数组 [0,1,0,...]，也可能返回按行嵌套的数组 [[0,1],[1,0]]
+     * 嵌套数组直接 optInt 会全部取到默认值 0（不报错），画出来就是一张全白图，所以这里先做兼容
+     */
+    private fun flattenMapData(data: JSONArray): List<Int> {
+        val result = ArrayList<Int>()
+        // 第一个元素仍是 JSONArray，说明是嵌套结构，逐行拍平
+        if (data.length() > 0 && data.optJSONArray(0) != null) {
+            for (r in 0 until data.length()) {
+                val row = data.optJSONArray(r) ?: continue
+                for (c in 0 until row.length()) {
+                    result.add(row.optInt(c, 0))
+                }
+            }
+        } else {
+            for (i in 0 until data.length()) {
+                result.add(data.optInt(i, 0))
+            }
+        }
+        return result
+    }
+
+    /**
+     * 发送导航目标点：POST /car/nav/goal?x=xxx&y=yyy
+     * 当前后端为占位实现，会返回“导航功能开发中”，这里把返回内容显示到 tvMapStatus
+     */
+    private fun sendNavGoal(x: Int, y: Int) {
+        val url = "$baseUrl/car/nav/goal?x=$x&y=$y"
+        val emptyBody = "".toRequestBody(null)
+        val request = Request.Builder()
+            .url(url)
+            .post(emptyBody)
+            .build()
+
+        try {
+            // 使用异步请求，避免阻塞主线程
+            client.newCall(request).enqueue(object : Callback {
+
+                // 网络异常、连接失败等情况的回调
+                override fun onFailure(call: Call, e: IOException) {
+                    runOnUiThread {
+                        tvMapStatus.text = "导航目标点($x,$y)发送失败：${e.message}"
+                    }
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    response.use { res ->
+                        val body = res.body?.string() ?: ""
+                        runOnUiThread {
+                            tvMapStatus.text = if (res.isSuccessful) {
+                                "导航目标点($x,$y)：$body"
+                            } else {
+                                "导航目标点($x,$y)发送失败，状态码：${res.code}"
+                            }
+                        }
+                    }
+                }
+            })
+        } catch (e: Exception) {
+            // 捕获构建请求或发起请求过程中可能出现的异常
+            tvMapStatus.text = "导航请求异常：${e.message}"
+        }
     }
 
     /**
