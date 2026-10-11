@@ -30,14 +30,15 @@ import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.IOException
-import java.net.URLEncoder
 
 /**
  * 录制的单个动作
@@ -250,6 +251,8 @@ class MainActivity : AppCompatActivity() {
         tvChatLog.movementMethod = ScrollingMovementMethod()
         etChatInput = findViewById(R.id.etChatInput)
         findViewById<Button>(R.id.btnSendChat).setOnClickListener { sendChatMessage() }
+        // 拍照发AI：抓取当前摄像头画面，转成 Base64 后连同文字一起发给 AI
+        findViewById<Button>(R.id.btnSnapAndChat).setOnClickListener { snapAndSendToAi() }
 
         // SLAM 地图区域：绑定控件，拉取地图数据，并给地图加上点击选点事件
         tvMapTitle = findViewById(R.id.tvMapTitle)
@@ -927,7 +930,7 @@ class MainActivity : AppCompatActivity() {
      * 读取输入框内容发送给 AI
      * 1. 为空时不发送
      * 2. 先在聊天记录里显示“我：xxx”并清空输入框，让操作有即时反馈
-     * 3. POST /car/ai/chat?text=xxx，AI 的回复由 WebSocket 推送
+     * 3. 后端接口已改为 POST + JSON body：{"text":"xxx","image":""}，AI 的回复仍由 WebSocket 推送
      */
     private fun sendChatMessage() {
         val input = etChatInput.text.toString().trim()
@@ -939,13 +942,17 @@ class MainActivity : AppCompatActivity() {
         appendChatLog("我：$input")
         etChatInput.setText("")
 
-        // 中文等特殊字符不能直接拼进 URL，需要先做 URL 编码，否则后端可能收到乱码
-        val encodedText = URLEncoder.encode(input, "UTF-8")
-        val url = "$baseUrl/car/ai/chat?text=$encodedText"
-        val emptyBody = "".toRequestBody(null)
+        // 纯文字发送时 image 字段传空字符串，用 JSONObject 拼出请求体，避免手动拼接字符串转义出错
+        val json = JSONObject().apply {
+            put("text", input)
+            put("image", "")
+        }.toString()
+        // Content-Type 设为 application/json，RequestBody 带上这个 MediaType 后 OkHttp 会自动写入请求头
+        val requestBody = json.toRequestBody("application/json".toMediaType())
+        val url = "$baseUrl/car/ai/chat"
         val request = Request.Builder()
             .url(url)
-            .post(emptyBody)
+            .post(requestBody)
             .build()
 
         try {
@@ -975,6 +982,73 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             // 捕获构建请求或发起请求过程中可能出现的异常
             tvStatus.text = "发送给 AI 异常：${e.message}"
+        }
+    }
+
+    /**
+     * 拍照发AI：抓取当前摄像头画面，转成 Base64 后连同输入框文字一起发给 AI
+     * 1. 没有画面（还没收到第一帧）时弹 Toast 提示，不发送
+     * 2. 有画面时压缩成 JPEG 再转 Base64，输入框为空则用默认文案“看看这是什么”
+     * 3. 后端接口已改为 POST + JSON body：{"text":"xxx","image":"base64字符串"}，AI 的回复仍由 WebSocket 推送
+     */
+    private fun snapAndSendToAi() {
+        // 复用现有的抓帧方法，没有画面时直接提示并返回
+        val bitmap = captureCameraBitmap() ?: run {
+            Toast.makeText(this, "还没有画面，无法发送", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // 压缩成 JPEG 再转 Base64，90 的质量在清晰度和体积之间比较平衡
+        val outputStream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
+        val base64Image = Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
+
+        // 输入框为空时使用默认文案
+        val inputText = etChatInput.text.toString().trim().ifEmpty { "看看这是什么" }
+
+        appendChatLog("我：[图片] $inputText")
+        etChatInput.setText("")
+
+        // 用 JSONObject 拼请求体，text 和 base64 图片都放进 JSON 字段，不再需要 URL 编码
+        val json = JSONObject().apply {
+            put("text", inputText)
+            put("image", base64Image)
+        }.toString()
+        // Content-Type 设为 application/json，RequestBody 带上这个 MediaType 后 OkHttp 会自动写入请求头
+        val requestBody = json.toRequestBody("application/json".toMediaType())
+        val url = "$baseUrl/car/ai/chat"
+        val request = Request.Builder()
+            .url(url)
+            .post(requestBody)
+            .build()
+
+        try {
+            // 使用异步请求，避免阻塞主线程
+            client.newCall(request).enqueue(object : Callback {
+
+                // 网络异常、连接失败等情况的回调
+                override fun onFailure(call: Call, e: IOException) {
+                    runOnUiThread {
+                        tvStatus.text = "拍照发AI失败：${e.message}"
+                    }
+                }
+
+                // 收到后端响应的回调，这里只关心是否发送成功，AI 回复走 WebSocket
+                override fun onResponse(call: Call, response: Response) {
+                    response.use { res ->
+                        runOnUiThread {
+                            tvStatus.text = if (res.isSuccessful) {
+                                "已发送图片给 AI"
+                            } else {
+                                "拍照发AI失败，状态码：${res.code}"
+                            }
+                        }
+                    }
+                }
+            })
+        } catch (e: Exception) {
+            // 捕获构建请求或发起请求过程中可能出现的异常
+            tvStatus.text = "拍照发AI异常：${e.message}"
         }
     }
 

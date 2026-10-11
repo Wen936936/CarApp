@@ -491,6 +491,14 @@
                 android:layout_height="wrap_content"
                 android:text="发送" />
 
+            <!-- 拍照发AI：抓取当前摄像头画面并连同文字一起发给 AI -->
+            <Button
+                android:id="@+id/btnSnapAndChat"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="拍照发AI" />
+
         </LinearLayout>
 
         <!-- ============ AI 对话区域结束 ============ -->
