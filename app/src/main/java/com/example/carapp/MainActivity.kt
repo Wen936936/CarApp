@@ -40,6 +40,18 @@ import java.io.IOException
 import java.net.URLEncoder
 
 /**
+ * 录制的单个动作
+ * type：动作类型，取值 "command"（小车控制）/ "led"（LED颜色）/ "arm"（机械臂姿态）
+ * params：该动作的参数，例如 "forward"、"red"、"90,90,90,90,90,90"
+ * timestamp：相对录制开始时刻的毫秒数，回放时按它延迟发送
+ */
+data class RecordedAction(
+    val type: String,
+    val params: String,
+    val timestamp: Long
+)
+
+/**
  * 小车控制主界面
  * 通过 OkHttp 向后端发送 GET 请求控制小车前进、后退、停止、左转、右转
  * 同时通过 WebSocket 接收后端推送的摄像头图像并实时显示
@@ -159,6 +171,27 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ============ 动作录制相关 ============
+    // 命名为 isActionRecording 而不是 isRecording，是因为上面相机录像已经占用了 isRecording 这个名字
+
+    // 本轮录制下来的动作序列，开始录制时清空，停止录制后保留供回放使用
+    private val recordedActions = ArrayList<RecordedAction>()
+
+    // 是否正在录制动作
+    private var isActionRecording = false
+
+    // 录制开始的系统时间，用于把每个动作换算成相对毫秒数
+    private var actionRecordStartTime = 0L
+
+    private lateinit var tvRecordLog: TextView
+    private lateinit var btnPlayRecord: Button
+
+    // 是否正在回放，回放期间禁用回放按钮，避免重复点击
+    private var isPlayingActions = false
+
+    // 回放用的 Handler，按每个动作的 timestamp 依次 postDelayed
+    private val playbackHandler = Handler(Looper.getMainLooper())
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -232,6 +265,13 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnAddPointC).setOnClickListener { addPatrolPoint("C") }
         findViewById<Button>(R.id.btnStartPatrol).setOnClickListener { startPatrol() }
         findViewById<Button>(R.id.btnStopPatrol).setOnClickListener { stopPatrol() }
+
+        // 动作录制区域：绑定控件与点击事件
+        tvRecordLog = findViewById(R.id.tvRecordLog)
+        findViewById<Button>(R.id.btnStartRecord).setOnClickListener { startActionRecord() }
+        findViewById<Button>(R.id.btnStopRecord).setOnClickListener { stopActionRecord() }
+        btnPlayRecord = findViewById(R.id.btnPlayRecord)
+        btnPlayRecord.setOnClickListener { playActionRecord() }
 
         // 页面创建时连接摄像头 WebSocket，开始接收图像推送
         connectCameraWebSocket()
@@ -721,6 +761,90 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
+     * 开始录制动作：清空上一轮的历史记录，记下开始时间，并置位 isActionRecording
+     */
+    private fun startActionRecord() {
+        recordedActions.clear()
+        isActionRecording = true
+        actionRecordStartTime = System.currentTimeMillis()
+        tvRecordLog.text = "开始录制...\n"
+        Toast.makeText(this, "开始录制动作", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * 停止录制动作：只置位标志，已经录到的 recordedActions 原样保留，供“回放”使用
+     */
+    private fun stopActionRecord() {
+        isActionRecording = false
+        Toast.makeText(this, "录制结束，共 ${recordedActions.size} 个动作", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * 记录一个动作：仅在 isActionRecording 为 true 时生效
+     * 计算相对录制开始时刻的毫秒数存入 recordedActions，并把记录追加显示到 tvRecordLog
+     * 这个方法会在 sendCommand、sendLedColor、sendArmPose 内部被调用，覆盖小车控制/LED/机械臂三类动作
+     */
+    private fun recordAction(type: String, params: String) {
+        if (!isActionRecording) return
+        val elapsed = System.currentTimeMillis() - actionRecordStartTime
+        recordedActions.add(RecordedAction(type, params, elapsed))
+        tvRecordLog.append("[${elapsed / 1000.0}s] $type: $params\n")
+    }
+
+    /**
+     * 回放录制的动作：按每个动作的 timestamp 依次延迟发送，回放中禁用“回放”按钮避免重复点击
+     */
+    private fun playActionRecord() {
+        if (isPlayingActions) return
+        if (recordedActions.isEmpty()) {
+            Toast.makeText(this, "还没有录制任何动作", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        isPlayingActions = true
+        btnPlayRecord.isEnabled = false
+        btnPlayRecord.text = "回放中..."
+
+        for (action in recordedActions) {
+            // postDelayed 的延迟就是动作录制时的相对毫秒数，第 1 个动作在 0.5s 就延迟 500ms 执行
+            playbackHandler.postDelayed({ executeRecordedAction(action) }, action.timestamp)
+        }
+
+        // 最后一个动作执行完之后，再恢复“回放”按钮
+        val lastTimestamp = recordedActions.last().timestamp
+        playbackHandler.postDelayed({
+            isPlayingActions = false
+            btnPlayRecord.isEnabled = true
+            btnPlayRecord.text = "回放"
+            Toast.makeText(this, "回放结束", Toast.LENGTH_SHORT).show()
+        }, lastTimestamp + 200)
+    }
+
+    /**
+     * 按动作类型把一条录制记录重新发送出去
+     * command -> sendCommand，led -> sendLedColor，arm -> 把 "base,p1,p2,p3,p4,p5" 拆开发送机械臂姿态
+     */
+    private fun executeRecordedAction(action: RecordedAction) {
+        when (action.type) {
+            "command" -> sendCommand(action.params)
+            "led" -> sendLedColor(action.params)
+            "arm" -> {
+                val values = action.params.split(",").mapNotNull { it.trim().toIntOrNull() }
+                if (values.size == 6) {
+                    // 同步更新滑动条显示，让界面看起来和回放的机械臂姿态一致
+                    seekBase.progress = values[0]
+                    seekP1.progress = values[1]
+                    seekP2.progress = values[2]
+                    seekP3.progress = values[3]
+                    seekP4.progress = values[4]
+                    seekP5.progress = values[5]
+                    sendArmPose(values[0], values[1], values[2], values[3], values[4], values[5])
+                }
+            }
+        }
+    }
+
+    /**
      * 连接 AI 对话 WebSocket，接收后端推送的 AI 回复并追加到聊天记录
      * 消息格式约定为 JSON：{"text": "AI 回复内容"}
      */
@@ -881,15 +1005,18 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * 发送机械臂姿态指令：POST /car/arm?p1=xxx&p2=xxx&p3=xxx&p4=xxx&p5=xxx&base=xxx
-     * 把 6 个滑动条当前的进度值一起拼进 URL 参数，由 sendSimplePostCommand 统一处理成功/失败提示
+     * 不传参数时默认读取 6 个滑动条当前的进度值；回放录制动作时会显式传入保存的 6 个数字
      */
-    private fun sendArmPose() {
-        val base = seekBase.progress
-        val p1 = seekP1.progress
-        val p2 = seekP2.progress
-        val p3 = seekP3.progress
-        val p4 = seekP4.progress
-        val p5 = seekP5.progress
+    private fun sendArmPose(
+        base: Int = seekBase.progress,
+        p1: Int = seekP1.progress,
+        p2: Int = seekP2.progress,
+        p3: Int = seekP3.progress,
+        p4: Int = seekP4.progress,
+        p5: Int = seekP5.progress
+    ) {
+        // 正在录制动作时，把这次机械臂姿态记下来，供后续“回放”使用
+        recordAction("arm", "$base,$p1,$p2,$p3,$p4,$p5")
 
         val url = "$baseUrl/car/arm?p1=$p1&p2=$p2&p3=$p3&p4=$p4&p5=$p5&base=$base"
         sendSimplePostCommand(url, "机械臂姿态")
@@ -966,6 +1093,12 @@ class MainActivity : AppCompatActivity() {
             isPatrolling = false
             patrolHandler.removeCallbacks(patrolTask)
         }
+
+        // 页面销毁时若还在回放动作，移除所有已排队的回放任务，避免 Handler 持有 Activity 引用
+        if (isPlayingActions) {
+            isPlayingActions = false
+            playbackHandler.removeCallbacksAndMessages(null)
+        }
     }
 
     /**
@@ -973,6 +1106,9 @@ class MainActivity : AppCompatActivity() {
      * action 取值：forward / backward / stop / left / right
      */
     private fun sendCommand(action: String) {
+        // 正在录制动作时，把这次小车控制记下来，供后续“回放”使用
+        recordAction("command", action)
+
         val url = "$baseUrl/car/command?action=$action"
         val request = Request.Builder()
             .url(url)
@@ -1027,6 +1163,9 @@ class MainActivity : AppCompatActivity() {
      * color 取值：red / green / blue / white / off
      */
     private fun sendLedColor(color: String) {
+        // 正在录制动作时，把这次 LED 颜色记下来，供后续“回放”使用
+        recordAction("led", color)
+
         sendSimplePostCommand("$baseUrl/car/led?color=$color", "LED颜色[$color]")
     }
 

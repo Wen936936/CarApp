@@ -613,6 +613,65 @@
 
         <!-- ============ 多点巡逻区域结束 ============ -->
 
+        <!-- ============ 动作录制区域 ============ -->
+        <!-- 动作录制区域标题 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="动作录制"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginBottom="8dp" />
+
+        <!-- 开始录制、停止录制、回放按钮一排 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="8dp">
+
+            <Button
+                android:id="@+id/btnStartRecord"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="开始录制" />
+
+            <Button
+                android:id="@+id/btnStopRecord"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="停止录制" />
+
+            <Button
+                android:id="@+id/btnPlayRecord"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="回放" />
+
+        </LinearLayout>
+
+        <!-- 录制动作列表显示区：固定高度，内容超出后可滚动查看 -->
+        <TextView
+            android:id="@+id/tvRecordLog"
+            android:layout_width="match_parent"
+            android:layout_height="140dp"
+            android:background="#F5F5F5"
+            android:padding="8dp"
+            android:textSize="14sp"
+            android:gravity="top|start"
+            android:text="尚未录制"
+            android:scrollbars="vertical"
+            android:layout_marginBottom="16dp" />
+
+        <!-- ============ 动作录制区域结束 ============ -->
+
     </LinearLayout>
 
 </ScrollView>
