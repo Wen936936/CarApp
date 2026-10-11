@@ -80,6 +80,48 @@ class MainActivity : AppCompatActivity() {
     private var mapWidth = 0
     private var mapHeight = 0
 
+    // 最近一次点击地图换算出的格子坐标，供“添加A/B/C点”按钮直接取用
+    private var lastClickedMapX: Int? = null
+    private var lastClickedMapY: Int? = null
+
+    // ============ 多点巡逻相关 ============
+
+    // 巡逻点坐标，初始为空，需先点地图再点“添加X点”才会被赋值
+    private var pointA: Pair<Int, Int>? = null
+    private var pointB: Pair<Int, Int>? = null
+    private var pointC: Pair<Int, Int>? = null
+
+    private lateinit var tvPatrolLog: TextView
+
+    // 是否正在巡逻，以及当前该前往第几个点（0=A，1=B，2=C，循环取模）
+    private var isPatrolling = false
+    private var patrolIndex = 0
+
+    // 巡逻循环用的 Handler，复用“录像定时抓帧”同一套思路：到点发指令，再排下一次
+    private val patrolHandler = Handler(Looper.getMainLooper())
+    private val patrolTask = object : Runnable {
+        override fun run() {
+            if (!isPatrolling) return
+
+            val points = listOf("A" to pointA, "B" to pointB, "C" to pointC)
+            val (name, point) = points[patrolIndex % points.size]
+
+            // 理论上开始巡逻前已校验三个点都已设置，这里仅做兜底，异常时停止巡逻
+            if (point == null) {
+                tvPatrolLog.text = "巡逻点 $name 未设置，巡逻已停止"
+                isPatrolling = false
+                return
+            }
+
+            tvPatrolLog.text = "正在前往 $name 点...(${point.first},${point.second})"
+            sendNavGoal(point.first, point.second)
+
+            patrolIndex++
+            // 延迟 3 秒模拟小车走到目标点耗时，再发下一个点
+            patrolHandler.postDelayed(this, 3000)
+        }
+    }
+
     // 喇叭当前是否处于响的状态，用于点击按钮时在 响/停 之间切换
     private var isBuzzerOn = false
 
@@ -182,6 +224,14 @@ class MainActivity : AppCompatActivity() {
         tvMapStatus = findViewById(R.id.tvMapStatus)
         ivMap.setOnTouchListener { _, event -> handleMapTouch(event) }
         loadMap()
+
+        // 多点巡逻区域：绑定控件与点击事件
+        tvPatrolLog = findViewById(R.id.tvPatrolLog)
+        findViewById<Button>(R.id.btnAddPointA).setOnClickListener { addPatrolPoint("A") }
+        findViewById<Button>(R.id.btnAddPointB).setOnClickListener { addPatrolPoint("B") }
+        findViewById<Button>(R.id.btnAddPointC).setOnClickListener { addPatrolPoint("C") }
+        findViewById<Button>(R.id.btnStartPatrol).setOnClickListener { startPatrol() }
+        findViewById<Button>(R.id.btnStopPatrol).setOnClickListener { stopPatrol() }
 
         // 页面创建时连接摄像头 WebSocket，开始接收图像推送
         connectCameraWebSocket()
@@ -385,6 +435,10 @@ class MainActivity : AppCompatActivity() {
         // 用 coerceIn 限制在合法范围内，避免点到边缘时算出越界坐标
         val x = ((event.x / viewWidth) * mapWidth).toInt().coerceIn(0, mapWidth - 1)
         val y = ((event.y / viewHeight) * mapHeight).toInt().coerceIn(0, mapHeight - 1)
+
+        // 记下这次点击的坐标，供“添加A/B/C点”按钮直接取用
+        lastClickedMapX = x
+        lastClickedMapY = y
 
         tvMapStatus.text = "已选目标点：x=$x, y=$y，发送中…"
         sendNavGoal(x, y)
@@ -607,6 +661,63 @@ class MainActivity : AppCompatActivity() {
             // 捕获构建请求或发起请求过程中可能出现的异常
             tvMapStatus.text = "导航请求异常：${e.message}"
         }
+    }
+
+    /**
+     * 把地图上最近一次点击的坐标存成巡逻点 A/B/C
+     * 还没点过地图时 lastClickedMapX/Y 为空，提示用户先点地图选点
+     */
+    private fun addPatrolPoint(name: String) {
+        val x = lastClickedMapX
+        val y = lastClickedMapY
+        if (x == null || y == null) {
+            Toast.makeText(this, "请先点击地图选择坐标，再添加 $name 点", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        when (name) {
+            "A" -> pointA = x to y
+            "B" -> pointB = x to y
+            "C" -> pointC = x to y
+        }
+
+        tvPatrolLog.text = patrolSummaryText()
+    }
+
+    /**
+     * 拼出当前 A/B/C 三个巡逻点的坐标摘要，未设置的点显示“未设置”
+     */
+    private fun patrolSummaryText(): String {
+        fun fmt(p: Pair<Int, Int>?) = p?.let { "(${it.first},${it.second})" } ?: "未设置"
+        return "A点:${fmt(pointA)}  B点:${fmt(pointB)}  C点:${fmt(pointC)}"
+    }
+
+    /**
+     * 开始巡逻：A/B/C 三个点必须都已设置，否则提示用户先补齐
+     * 从 A 点开始，立即发第一个目标点，后续由 patrolTask 每 3 秒接力发送下一个点
+     */
+    private fun startPatrol() {
+        if (isPatrolling) {
+            Toast.makeText(this, "巡逻已在进行中", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (pointA == null || pointB == null || pointC == null) {
+            Toast.makeText(this, "请先设置 A、B、C 三个巡逻点", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        isPatrolling = true
+        patrolIndex = 0
+        patrolHandler.post(patrolTask)
+    }
+
+    /**
+     * 停止巡逻：置标志位并移除已排队的巡逻任务，避免停止后还会再发一次
+     */
+    private fun stopPatrol() {
+        isPatrolling = false
+        patrolHandler.removeCallbacks(patrolTask)
+        tvPatrolLog.text = "巡逻已停止"
     }
 
     /**
@@ -849,6 +960,12 @@ class MainActivity : AppCompatActivity() {
             recordHandler.removeCallbacks(recordTask)
         }
         recordFrames.clear()
+
+        // 页面销毁时若还在巡逻，同样要停掉循环任务，避免 Handler 持有 Activity 引用
+        if (isPatrolling) {
+            isPatrolling = false
+            patrolHandler.removeCallbacks(patrolTask)
+        }
     }
 
     /**

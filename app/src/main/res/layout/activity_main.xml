@@ -532,6 +532,87 @@
 
         <!-- ============ SLAM 地图区域结束 ============ -->
 
+        <!-- ============ 多点巡逻区域 ============ -->
+        <!-- 多点巡逻区域标题 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="多点巡逻"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginBottom="8dp" />
+
+        <!-- 添加巡逻点按钮一排：A、B、C 三个点，取地图上最近一次点击的坐标 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="8dp">
+
+            <Button
+                android:id="@+id/btnAddPointA"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="添加A点" />
+
+            <Button
+                android:id="@+id/btnAddPointB"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="添加B点" />
+
+            <Button
+                android:id="@+id/btnAddPointC"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="添加C点" />
+
+        </LinearLayout>
+
+        <!-- 巡逻状态提示：显示已添加的 A/B/C 点坐标，巡逻中显示当前前往的目标点 -->
+        <TextView
+            android:id="@+id/tvPatrolLog"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="A点:未设置  B点:未设置  C点:未设置"
+            android:textSize="14sp"
+            android:gravity="center"
+            android:layout_marginBottom="8dp" />
+
+        <!-- 开始巡逻、停止巡逻按钮 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="16dp">
+
+            <Button
+                android:id="@+id/btnStartPatrol"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="开始巡逻" />
+
+            <Button
+                android:id="@+id/btnStopPatrol"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="停止巡逻" />
+
+        </LinearLayout>
+
+        <!-- ============ 多点巡逻区域结束 ============ -->
+
     </LinearLayout>
 
 </ScrollView>

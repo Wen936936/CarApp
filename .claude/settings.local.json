@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(./gradlew compileDebugKotlin --console=plain -q)",
-      "Bash(./gradlew.bat compileDebugKotlin --offline -q)"
+      "Bash(./gradlew.bat compileDebugKotlin --offline -q)",
+      "Bash(./gradlew :app:compileDebugKotlin --console=plain)"
     ]
   }
 }
