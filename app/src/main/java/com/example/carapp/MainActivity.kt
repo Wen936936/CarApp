@@ -83,6 +83,14 @@ class MainActivity : AppCompatActivity() {
     // 喇叭当前是否处于响的状态，用于点击按钮时在 响/停 之间切换
     private var isBuzzerOn = false
 
+    // 机械臂 6 个关节滑动条的引用，松手发指令时需要一次性读取这 6 个的当前进度
+    private lateinit var seekBase: SeekBar
+    private lateinit var seekP1: SeekBar
+    private lateinit var seekP2: SeekBar
+    private lateinit var seekP3: SeekBar
+    private lateinit var seekP4: SeekBar
+    private lateinit var seekP5: SeekBar
+
     // ============ 相机基本功能相关 ============
 
     // 拍照、录像按钮，录像按钮的文字需要在运行时切换，所以存成成员变量
@@ -153,13 +161,13 @@ class MainActivity : AppCompatActivity() {
         // 机械臂归位按钮：让机械臂回到预设初始姿态
         findViewById<Button>(R.id.btnArmReset).setOnClickListener { sendArmReset() }
 
-        // 机械臂 6 个关节滑动条（base、p1~p5），当前只更新数值显示，暂不发送指令
-        bindArmSeekBar(R.id.seekBase, R.id.tvBaseValue)
-        bindArmSeekBar(R.id.seekP1, R.id.tvP1Value)
-        bindArmSeekBar(R.id.seekP2, R.id.tvP2Value)
-        bindArmSeekBar(R.id.seekP3, R.id.tvP3Value)
-        bindArmSeekBar(R.id.seekP4, R.id.tvP4Value)
-        bindArmSeekBar(R.id.seekP5, R.id.tvP5Value)
+        // 机械臂 6 个关节滑动条（base、p1~p5）：拖动中只更新数值显示，松手后统一发送一次指令
+        seekBase = bindArmSeekBar(R.id.seekBase, R.id.tvBaseValue)
+        seekP1 = bindArmSeekBar(R.id.seekP1, R.id.tvP1Value)
+        seekP2 = bindArmSeekBar(R.id.seekP2, R.id.tvP2Value)
+        seekP3 = bindArmSeekBar(R.id.seekP3, R.id.tvP3Value)
+        seekP4 = bindArmSeekBar(R.id.seekP4, R.id.tvP4Value)
+        seekP5 = bindArmSeekBar(R.id.seekP5, R.id.tvP5Value)
 
         // AI 对话区域：聊天记录框允许内部滚动，输入框与发送按钮绑定点击事件
         tvChatLog = findViewById(R.id.tvChatLog)
@@ -637,7 +645,16 @@ class MainActivity : AppCompatActivity() {
                         val aiText = msg.optString("text")
                         if (aiText.isEmpty()) return
 
-                        runOnUiThread { appendChatLog("AI：$aiText") }
+                        // action 字段后端已自动执行，App 端不需要再调用任何指令接口，
+                        // 这里只是在聊天记录里把具体执行的动作附带展示出来，方便确认
+                        val action = msg.optString("action")
+                        val displayLine = if (action.isNotEmpty()) {
+                            "AI：$aiText（动作：$action）"
+                        } else {
+                            "AI：$aiText"
+                        }
+
+                        runOnUiThread { appendChatLog(displayLine) }
                     } catch (e: Exception) {
                         // 解析失败时记录日志，避免单条异常消息导致连接中断
                         Log.e("ChatWS", "AI 回复解析失败：${e.message}")
@@ -727,10 +744,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 绑定单个机械臂关节滑动条：拖动时只同步右侧的数值显示
-     * 后续接入姿态控制接口后，可在这里追加发送请求的逻辑
+     * 绑定单个机械臂关节滑动条：拖动中只同步右侧的数值显示，
+     * 松手（onStopTrackingTouch）时触发一次完整的姿态发送，把 6 个滑动条的值一起发给后端
+     * 返回 SeekBar 引用，方便外部统一持有，在发送指令时读取所有滑动条的当前进度
      */
-    private fun bindArmSeekBar(seekBarId: Int, valueTextViewId: Int) {
+    private fun bindArmSeekBar(seekBarId: Int, valueTextViewId: Int): SeekBar {
         val seekBar = findViewById<SeekBar>(seekBarId)
         val valueText = findViewById<TextView>(valueTextViewId)
         // 初始化时先把当前进度显示出来，避免与布局里的默认文字不一致
@@ -741,8 +759,29 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onStartTrackingTouch(sb: SeekBar?) = Unit
-            override fun onStopTrackingTouch(sb: SeekBar?) = Unit
+
+            // 松手才发送，避免拖动过程中产生大量重复请求
+            override fun onStopTrackingTouch(sb: SeekBar?) {
+                sendArmPose()
+            }
         })
+        return seekBar
+    }
+
+    /**
+     * 发送机械臂姿态指令：POST /car/arm?p1=xxx&p2=xxx&p3=xxx&p4=xxx&p5=xxx&base=xxx
+     * 把 6 个滑动条当前的进度值一起拼进 URL 参数，由 sendSimplePostCommand 统一处理成功/失败提示
+     */
+    private fun sendArmPose() {
+        val base = seekBase.progress
+        val p1 = seekP1.progress
+        val p2 = seekP2.progress
+        val p3 = seekP3.progress
+        val p4 = seekP4.progress
+        val p5 = seekP5.progress
+
+        val url = "$baseUrl/car/arm?p1=$p1&p2=$p2&p3=$p3&p4=$p4&p5=$p5&base=$base"
+        sendSimplePostCommand(url, "机械臂姿态")
     }
 
     /**
