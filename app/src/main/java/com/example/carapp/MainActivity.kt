@@ -25,6 +25,7 @@ import android.widget.SeekBar
 import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import okhttp3.Call
 import okhttp3.Callback
@@ -59,15 +60,6 @@ data class RecordedAction(
  * 另外通过 WebSocket 接收 AI 回复，并用 POST 把聊天文字发送给 AI
  */
 class MainActivity : AppCompatActivity() {
-
-    // 后端服务器基础地址，需根据实际局域网 IP 修改
-    private val baseUrl = "http://10.0.2.2:8080"
-
-    // 摄像头图像推送地址，模拟器中 10.0.2.2 指向宿主机
-    private val cameraWsUrl = "ws://10.0.2.2:8080/ws/camera"
-
-    // AI 对话回复推送地址，与摄像头分成两条独立连接，互不影响
-    private val chatWsUrl = "ws://10.0.2.2:8080/ws/chat"
 
     // OkHttp 客户端，全局复用一个实例，避免重复创建连接池
     private val client = OkHttpClient()
@@ -193,6 +185,57 @@ class MainActivity : AppCompatActivity() {
     // 回放用的 Handler，按每个动作的 timestamp 依次 postDelayed
     private val playbackHandler = Handler(Looper.getMainLooper())
 
+    // ============ 设置：后端地址读取/保存 ============
+
+    /**
+     * 从 SharedPreferences 读取后端地址，没存过时默认用模拟器可访问的 10.0.2.2:8080
+     */
+    private fun loadBaseUrl(): String {
+        val prefs = getSharedPreferences("car_app_prefs", MODE_PRIVATE)
+        return prefs.getString("base_url", "http://10.0.2.2:8080") ?: "http://10.0.2.2:8080"
+    }
+
+    /**
+     * 把当前后端地址换算成 WebSocket 地址：http -> ws，https -> wss，再拼上传入的路径
+     */
+    private fun loadWsUrl(path: String): String {
+        val wsBase = loadBaseUrl()
+            .replace("https://", "wss://")
+            .replace("http://", "ws://")
+        return "$wsBase$path"
+    }
+
+    /**
+     * 弹出设置对话框，让用户输入后端地址（如 http://192.168.0.105:8080）并保存到 SharedPreferences
+     * 因为 WebSocket 连接和各处请求地址都是运行时读取，保存后仍提示需要重启 App，避免已建立的连接行为不一致
+     */
+    private fun showSettingsDialog() {
+        val editText = EditText(this)
+        editText.setText(loadBaseUrl())
+        editText.hint = "例如 http://192.168.0.105:8080"
+        // 给输入框加一点内边距，避免紧贴对话框边缘
+        val padding = (16 * resources.displayMetrics.density).toInt()
+        editText.setPadding(padding, padding, padding, padding)
+
+        AlertDialog.Builder(this)
+            .setTitle("设置后端地址")
+            .setView(editText)
+            .setPositiveButton("保存") { _, _ ->
+                val input = editText.text.toString().trim()
+                if (input.isEmpty()) {
+                    Toast.makeText(this, "地址不能为空", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                getSharedPreferences("car_app_prefs", MODE_PRIVATE)
+                    .edit()
+                    .putString("base_url", input)
+                    .apply()
+                Toast.makeText(this, "已保存，重启 App 后生效", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -292,6 +335,9 @@ class MainActivity : AppCompatActivity() {
         // 录像：开始/停止之间切换
         btnRecord = findViewById(R.id.btnRecord)
         btnRecord.setOnClickListener { toggleRecording() }
+
+        // 设置按钮：弹出对话框修改后端地址
+        findViewById<Button>(R.id.btnSettings).setOnClickListener { showSettingsDialog() }
     }
 
     /**
@@ -495,7 +541,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun loadMap() {
         val request = Request.Builder()
-            .url("$baseUrl/car/map")
+            .url("${loadBaseUrl()}/car/map")
             .get()
             .build()
 
@@ -669,7 +715,7 @@ class MainActivity : AppCompatActivity() {
      * 当前后端为占位实现，会返回“导航功能开发中”，这里把返回内容显示到 tvMapStatus
      */
     private fun sendNavGoal(x: Int, y: Int) {
-        val url = "$baseUrl/car/nav/goal?x=$x&y=$y"
+        val url = "${loadBaseUrl()}/car/nav/goal?x=$x&y=$y"
         val emptyBody = "".toRequestBody(null)
         val request = Request.Builder()
             .url(url)
@@ -853,7 +899,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun connectChatWebSocket() {
         val request = Request.Builder()
-            .url(chatWsUrl)
+            .url(loadWsUrl("/ws/chat"))
             .build()
 
         try {
@@ -949,7 +995,7 @@ class MainActivity : AppCompatActivity() {
         }.toString()
         // Content-Type 设为 application/json，RequestBody 带上这个 MediaType 后 OkHttp 会自动写入请求头
         val requestBody = json.toRequestBody("application/json".toMediaType())
-        val url = "$baseUrl/car/ai/chat"
+        val url = "${loadBaseUrl()}/car/ai/chat"
         val request = Request.Builder()
             .url(url)
             .post(requestBody)
@@ -1016,7 +1062,7 @@ class MainActivity : AppCompatActivity() {
         }.toString()
         // Content-Type 设为 application/json，RequestBody 带上这个 MediaType 后 OkHttp 会自动写入请求头
         val requestBody = json.toRequestBody("application/json".toMediaType())
-        val url = "$baseUrl/car/ai/chat"
+        val url = "${loadBaseUrl()}/car/ai/chat"
         val request = Request.Builder()
             .url(url)
             .post(requestBody)
@@ -1092,7 +1138,7 @@ class MainActivity : AppCompatActivity() {
         // 正在录制动作时，把这次机械臂姿态记下来，供后续“回放”使用
         recordAction("arm", "$base,$p1,$p2,$p3,$p4,$p5")
 
-        val url = "$baseUrl/car/arm?p1=$p1&p2=$p2&p3=$p3&p4=$p4&p5=$p5&base=$base"
+        val url = "${loadBaseUrl()}/car/arm?p1=$p1&p2=$p2&p3=$p3&p4=$p4&p5=$p5&base=$base"
         sendSimplePostCommand(url, "机械臂姿态")
     }
 
@@ -1101,7 +1147,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun connectCameraWebSocket() {
         val request = Request.Builder()
-            .url(cameraWsUrl)
+            .url(loadWsUrl("/ws/camera"))
             .build()
 
         try {
@@ -1183,7 +1229,7 @@ class MainActivity : AppCompatActivity() {
         // 正在录制动作时，把这次小车控制记下来，供后续“回放”使用
         recordAction("command", action)
 
-        val url = "$baseUrl/car/command?action=$action"
+        val url = "${loadBaseUrl()}/car/command?action=$action"
         val request = Request.Builder()
             .url(url)
             .get()
@@ -1229,7 +1275,7 @@ class MainActivity : AppCompatActivity() {
      * 无参数，请求体为空，让机械臂回到预设初始姿态
      */
     private fun sendArmReset() {
-        sendSimplePostCommand("$baseUrl/car/arm/reset", "机械臂归位")
+        sendSimplePostCommand("${loadBaseUrl()}/car/arm/reset", "机械臂归位")
     }
 
     /**
@@ -1240,7 +1286,7 @@ class MainActivity : AppCompatActivity() {
         // 正在录制动作时，把这次 LED 颜色记下来，供后续“回放”使用
         recordAction("led", color)
 
-        sendSimplePostCommand("$baseUrl/car/led?color=$color", "LED颜色[$color]")
+        sendSimplePostCommand("${loadBaseUrl()}/car/led?color=$color", "LED颜色[$color]")
     }
 
     /**
@@ -1248,7 +1294,7 @@ class MainActivity : AppCompatActivity() {
      * mode 取值：steady（常亮） / flow（流水灯） / blink（闪烁）
      */
     private fun sendLedMode(mode: String) {
-        sendSimplePostCommand("$baseUrl/car/led/mode?mode=$mode", "LED模式[$mode]")
+        sendSimplePostCommand("${loadBaseUrl()}/car/led/mode?mode=$mode", "LED模式[$mode]")
     }
 
     /**
@@ -1256,7 +1302,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun toggleBuzzer() {
         val action = if (isBuzzerOn) "off" else "on"
-        sendSimplePostCommand("$baseUrl/car/buzzer?action=$action", "喇叭[$action]") { success ->
+        sendSimplePostCommand("${loadBaseUrl()}/car/buzzer?action=$action", "喇叭[$action]") { success ->
             // 仅在请求成功时才切换状态和按钮文字，避免界面与实际状态不一致
             if (success) {
                 isBuzzerOn = !isBuzzerOn
@@ -1271,7 +1317,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun sendImageProcessSwitch(enabled: Boolean) {
         val description = if (enabled) "图像处理开启" else "图像处理关闭"
-        sendSimplePostCommand("$baseUrl/car/image/process?enabled=$enabled", description)
+        sendSimplePostCommand("${loadBaseUrl()}/car/image/process?enabled=$enabled", description)
     }
 
     /**

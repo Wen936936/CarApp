@@ -1,9 +1,20 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme. -->
+    <!-- 深色科技风：固定覆盖主色/背景/文字色，不随系统日间/夜间模式变化 -->
     <style name="Base.Theme.CarApp" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <item name="colorPrimary">@color/color_primary</item>
+        <item name="android:windowBackground">@color/bg_primary</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="materialButtonStyle">@style/Widget.CarApp.Button</item>
     </style>
 
     <style name="Theme.CarApp" parent="Base.Theme.CarApp" />
+
+    <!-- 统一按钮风格：青底白字、4dp 圆角，所有 Button 自动套用 -->
+    <style name="Widget.CarApp.Button" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/color_primary</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="cornerRadius">4dp</item>
+    </style>
 </resources>

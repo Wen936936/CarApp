@@ -3,7 +3,8 @@
     "allow": [
       "Bash(./gradlew compileDebugKotlin --console=plain -q)",
       "Bash(./gradlew.bat compileDebugKotlin --offline -q)",
-      "Bash(./gradlew :app:compileDebugKotlin --console=plain)"
+      "Bash(./gradlew :app:compileDebugKotlin --console=plain)",
+      "Bash(./gradlew.bat :app:compileDebugSources --console=plain)"
     ]
   }
 }
