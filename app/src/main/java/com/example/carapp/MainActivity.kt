@@ -1276,6 +1276,16 @@ class MainActivity : AppCompatActivity() {
      */
     private fun sendArmReset() {
         sendSimplePostCommand("${loadBaseUrl()}/car/arm/reset", "机械臂归位")
+        // 归位请求发出后，界面上的 6 个滑动条也要同步回到默认值 90，
+        // 否则后端已经归位但 App 上滑动条和数字还停留在旧的位置，容易让人误以为没生效。
+        // 设置 progress 会触发 bindArmSeekBar 里注册的 onProgressChanged 监听，
+        // 对应的数字 TextView 也会跟着自动刷新为 "90"，不需要再手动赋值 text。
+        seekBase.progress = 90
+        seekP1.progress = 90
+        seekP2.progress = 90
+        seekP3.progress = 90
+        seekP4.progress = 90
+        seekP5.progress = 90
     }
 
     /**
