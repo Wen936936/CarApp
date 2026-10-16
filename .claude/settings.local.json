@@ -4,7 +4,13 @@
       "Bash(./gradlew compileDebugKotlin --console=plain -q)",
       "Bash(./gradlew.bat compileDebugKotlin --offline -q)",
       "Bash(./gradlew :app:compileDebugKotlin --console=plain)",
-      "Bash(./gradlew.bat :app:compileDebugSources --console=plain)"
+      "Bash(./gradlew.bat :app:compileDebugSources --console=plain)",
+      "Bash(python -c ' *)",
+      "Bash(./gradlew :app:processDebugResources --offline -q)",
+      "Bash(./gradlew :app:processDebugResources --offline)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(./gradlew.bat compileDebugKotlin --quiet)",
+      "Bash(./gradlew.bat compileDebugKotlin -q)"
     ]
   }
 }

@@ -338,6 +338,143 @@ class MainActivity : AppCompatActivity() {
 
         // 设置按钮：弹出对话框修改后端地址
         findViewById<Button>(R.id.btnSettings).setOnClickListener { showSettingsDialog() }
+
+        // 横竖屏旋转会重建 Activity（走正常的 onCreate 流程，layout-land 才能被自动选中），
+        // 这里把上次 onSaveInstanceState 存的聊天记录/巡逻点/机械臂滑动条数值找回来，避免被重置
+        restoreState(savedInstanceState)
+    }
+
+    /**
+     * 把聊天记录、巡逻点 A/B/C、机械臂 6 个滑动条的当前进度存进 outState，
+     * 供旋转屏幕重建 Activity 后在 onCreate 里还原，避免状态被清空
+     *
+     * 注意：这里只存"已录制的动作列表" recordedActions（数据本身），
+     * 不存 isActionRecording / isPlayingActions 这两个状态标志位——
+     * 它们旋转后要被中断而不是恢复，详见 restoreState() 和 onDestroy() 里的处理
+     */
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString("chat_log", tvChatLog.text.toString())
+        outState.putIntArray("point_a", pointA?.let { intArrayOf(it.first, it.second) })
+        outState.putIntArray("point_b", pointB?.let { intArrayOf(it.first, it.second) })
+        outState.putIntArray("point_c", pointC?.let { intArrayOf(it.first, it.second) })
+        // 是否正在巡逻、巡逻到第几个点，也要存下来，否则旋转屏幕重建 Activity 后巡逻循环会被打断
+        outState.putBoolean("is_patrolling", isPatrolling)
+        outState.putInt("patrol_index", patrolIndex)
+        outState.putInt("seek_base", seekBase.progress)
+        outState.putInt("seek_p1", seekP1.progress)
+        outState.putInt("seek_p2", seekP2.progress)
+        outState.putInt("seek_p3", seekP3.progress)
+        outState.putInt("seek_p4", seekP4.progress)
+        outState.putInt("seek_p5", seekP5.progress)
+        // 已录制的动作列表序列化成 JSON 字符串存进 Bundle，旋转后在 restoreState 里还原
+        outState.putString("recorded_actions", serializeRecordedActions())
+    }
+
+    /**
+     * 从 savedInstanceState 还原聊天记录、巡逻点、机械臂滑动条数值
+     * 首次启动（savedInstanceState 为 null，比如冷启动或进程被杀后重建）时什么都不做，走默认值即可
+     */
+    private fun restoreState(savedInstanceState: Bundle?) {
+        if (savedInstanceState == null) return
+
+        savedInstanceState.getString("chat_log")?.let { tvChatLog.text = it }
+
+        fun readPoint(key: String): Pair<Int, Int>? {
+            val arr = savedInstanceState.getIntArray(key) ?: return null
+            return if (arr.size == 2) arr[0] to arr[1] else null
+        }
+        pointA = readPoint("point_a")
+        pointB = readPoint("point_b")
+        pointC = readPoint("point_c")
+        tvPatrolLog.text = patrolSummaryText()
+
+        // 还原巡逻状态：如果旋转前正在巡逻，这里直接从 patrolIndex 接力重启循环，
+        // 不走 startPatrol()（它会把 patrolIndex 重置为 0，并对“已在巡逻”做拦截提示，不适用于恢复场景）；
+        // 如果旋转前没在巡逻，isPatrolling 读出来是 false，什么都不做
+        isPatrolling = savedInstanceState.getBoolean("is_patrolling", false)
+        patrolIndex = savedInstanceState.getInt("patrol_index", 0)
+        if (isPatrolling) {
+            // 防御性移除一次，避免极端情况下任务被重复排队
+            patrolHandler.removeCallbacks(patrolTask)
+            patrolHandler.post(patrolTask)
+        }
+
+        // 设置 progress 会触发 bindArmSeekBar 里注册的 onProgressChanged 监听，数字 TextView 跟着自动刷新
+        seekBase.progress = savedInstanceState.getInt("seek_base", seekBase.progress)
+        seekP1.progress = savedInstanceState.getInt("seek_p1", seekP1.progress)
+        seekP2.progress = savedInstanceState.getInt("seek_p2", seekP2.progress)
+        seekP3.progress = savedInstanceState.getInt("seek_p3", seekP3.progress)
+        seekP4.progress = savedInstanceState.getInt("seek_p4", seekP4.progress)
+        seekP5.progress = savedInstanceState.getInt("seek_p5", seekP5.progress)
+
+        // 还原"已录制的动作列表"：旋转前录了哪些动作，旋转后原样找回，并刷新 tvRecordLog 显示
+        val recordedJson = savedInstanceState.getString("recorded_actions")
+        if (!recordedJson.isNullOrEmpty()) {
+            recordedActions.clear()
+            recordedActions.addAll(deserializeRecordedActions(recordedJson))
+            tvRecordLog.text = buildRecordLogText()
+        }
+
+        // 注意：isActionRecording / isPlayingActions 这两个状态标志位故意不从 Bundle 读取，
+        // 新建的 Activity 实例里它们保持字段默认值 false，相当于"旋转后自动中断录制/回放"：
+        // 1. 旋转前如果正在录制（isActionRecording==true），新实例里自然是 false，不会继续往 recordedActions 里追加动作；
+        // 2. 旋转前如果正在回放（isPlayingActions==true），旧实例已在 onDestroy 里调用
+        //    playbackHandler.removeCallbacksAndMessages(null) 清空了所有排队的回放任务，
+        //    新实例的 isPlayingActions 为 false、btnPlayRecord 文字也是布局默认的"回放"，不会残留"回放中..."状态。
+        // 理由：旋转是环境变化，继续录制/回放会导致时间戳混乱（新实例的 actionRecordStartTime 已经不对应旧的录制起点）。
+    }
+
+    /**
+     * 把 recordedActions 序列化成 JSON 字符串，供 onSaveInstanceState 存进 Bundle
+     * 每条动作存成 {"type":..,"params":..,"timestamp":..} 的 JSON 对象
+     */
+    private fun serializeRecordedActions(): String {
+        val array = JSONArray()
+        for (action in recordedActions) {
+            val obj = JSONObject()
+            obj.put("type", action.type)
+            obj.put("params", action.params)
+            obj.put("timestamp", action.timestamp)
+            array.put(obj)
+        }
+        return array.toString()
+    }
+
+    /**
+     * 把 serializeRecordedActions 存的 JSON 字符串还原成 RecordedAction 列表
+     * 解析失败（数据损坏等极端情况）时返回空列表，不让旋转屏幕直接崩溃
+     */
+    private fun deserializeRecordedActions(json: String): List<RecordedAction> {
+        val result = ArrayList<RecordedAction>()
+        try {
+            val array = JSONArray(json)
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                result.add(
+                    RecordedAction(
+                        obj.getString("type"),
+                        obj.getString("params"),
+                        obj.getLong("timestamp")
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            Log.e("Record", "动作记录反序列化失败：${e.message}")
+        }
+        return result
+    }
+
+    /**
+     * 按 recordedActions 当前内容拼出 tvRecordLog 应显示的完整文本
+     * 格式与 recordAction() 里逐条 append 的格式保持一致，供旋转屏幕恢复状态时整体刷新显示
+     */
+    private fun buildRecordLogText(): String {
+        val sb = StringBuilder("已恢复 ${recordedActions.size} 个动作：\n")
+        for (action in recordedActions) {
+            sb.append("[${action.timestamp / 1000.0}s] ${action.type}: ${action.params}\n")
+        }
+        return sb.toString()
     }
 
     /**
@@ -1215,10 +1352,18 @@ class MainActivity : AppCompatActivity() {
         }
 
         // 页面销毁时若还在回放动作，移除所有已排队的回放任务，避免 Handler 持有 Activity 引用
+        // 旋转屏幕也会走到这里（先 onSaveInstanceState 再 onDestroy 再重建新实例），
+        // 这正好用来实现"旋转时中断回放"：旧实例排队的回放任务被清空，新实例的 isPlayingActions 默认是 false，
+        // 不会继续按旧的时间戳发送指令，避免时间戳错乱
         if (isPlayingActions) {
             isPlayingActions = false
             playbackHandler.removeCallbacksAndMessages(null)
         }
+
+        // 页面销毁时若还在录制动作，这里只需置位标志，无需额外清理：
+        // recordAction() 是同步调用（不走 Handler 排队），新实例的 isActionRecording 字段默认就是 false，
+        // 旋转后不会继续往 recordedActions 里追加动作，相当于"旋转时自动停止录制"
+        isActionRecording = false
     }
 
     /**
