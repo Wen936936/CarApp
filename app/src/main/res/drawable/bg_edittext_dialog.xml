@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 设置弹窗输入框背景：强制白底 + 灰色描边 + 8dp 圆角
+     弹窗底色会随系统日/夜模式变化，若只固定文字颜色，深色弹窗上会出现黑字黑底，
+     因此这里把输入框背景固定成白色，配合代码里的 setTextColor(Color.BLACK) 使用 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#FFFFFF" />
+    <stroke
+        android:width="1dp"
+        android:color="#BDBDBD" />
+    <corners android:radius="8dp" />
+</shape>

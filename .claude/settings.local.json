@@ -10,7 +10,17 @@
       "Bash(./gradlew :app:processDebugResources --offline)",
       "Bash(echo \"EXIT=$?\")",
       "Bash(./gradlew.bat compileDebugKotlin --quiet)",
-      "Bash(./gradlew.bat compileDebugKotlin -q)"
+      "Bash(./gradlew.bat compileDebugKotlin -q)",
+      "Bash(./gradlew compileDebugKotlin --offline -q)",
+      "Bash(./gradlew assembleDebug --offline -q)",
+      "Bash(./gradlew :app:compileDebugKotlin --offline -q)",
+      "Bash(./gradlew :app:compileDebugKotlin -q)",
+      "Bash(./gradlew :app:assembleDebug -q)",
+      "Bash(./gradlew :app:assembleDebug)",
+      "Bash(adb devices *)",
+      "Bash(./gradlew compileDebugKotlin -q --offline)",
+      "Bash(./gradlew compileDebugKotlin --offline)",
+      "Bash(./gradlew compileDebugKotlin --offline --rerun-tasks)"
     ]
   }
 }

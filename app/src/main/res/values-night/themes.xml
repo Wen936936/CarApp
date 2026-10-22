@@ -6,6 +6,6 @@
         <item name="android:windowBackground">@color/bg_primary</item>
         <item name="android:textColorPrimary">@color/text_primary</item>
         <item name="android:textColorSecondary">@color/text_secondary</item>
-        <item name="materialButtonStyle">@style/Widget.CarApp.Button</item>
+        <item name="materialButtonStyle">@style/Widget.CarApp.Button.Primary</item>
     </style>
 </resources>

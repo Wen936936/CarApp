@@ -1,23 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 小车控制主界面布局（竖屏）：深色科技风
-     结构：最外层竖向 LinearLayout = 顶部固定的相机区 + 下方可滚动的功能卡片区
+     结构：最外层竖向 LinearLayout = 固定顶栏 + 固定相机区 + 下方可滚动的功能卡片区
      注意：本文件与 res/layout-land/activity_main.xml 的控件 id 必须完全一致，
            这样 MainActivity.kt 里的 findViewById 不用改 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/rootLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@color/bg_primary">
 
-    <!-- ============ 第一个子元素：顶部固定相机区（不随下方内容滚动） ============ -->
+    <!-- ============ 固定顶栏：左侧应用名，右侧状态文本（随内容滚动不受影响） ============ -->
+    <LinearLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/bg_card"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="车控 App"
+            android:textColor="@color/color_primary"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <!-- 状态提示文本，显示最近一次指令的发送结果/连接状态 -->
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="等待操作"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp"
+            android:gravity="end"
+            android:singleLine="true"
+            android:ellipsize="end" />
+
+    </LinearLayout>
+
+    <!-- ============ 第二个子元素：顶部固定相机区（不随下方内容滚动） ============ -->
     <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_margin="8dp"
         app:cardBackgroundColor="@color/bg_card"
-        app:cardCornerRadius="8dp"
-        app:cardElevation="2dp">
+        app:cardCornerRadius="12dp"
+        app:cardElevation="0dp"
+        app:strokeColor="@color/border_color"
+        app:strokeWidth="1dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -25,7 +64,7 @@
             android:orientation="vertical"
             android:padding="12dp">
 
-            <!-- 相机标题 + 连接/指令状态，同一行左右分布 -->
+            <!-- 相机标题：竖条装饰 + 文字 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -33,24 +72,19 @@
                 android:gravity="center_vertical"
                 android:layout_marginBottom="8dp">
 
+                <View
+                    android:layout_width="3dp"
+                    android:layout_height="16dp"
+                    android:background="@color/color_primary"
+                    android:layout_marginEnd="6dp" />
+
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="相机"
                     android:textColor="@color/color_primary"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-
-                <!-- 状态提示文本，显示最近一次指令的发送结果/连接状态 -->
-                <TextView
-                    android:id="@+id/tvStatus"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="等待操作"
-                    android:textColor="@color/text_secondary"
                     android:textSize="14sp"
-                    android:gravity="end" />
+                    android:textStyle="bold" />
 
             </LinearLayout>
 
@@ -74,7 +108,7 @@
 
     </com.google.android.material.card.MaterialCardView>
 
-    <!-- ============ 第二个子元素：下方所有功能区，整体可上下滚动 ============ -->
+    <!-- ============ 第三个子元素：下方所有功能区，整体可上下滚动 ============ -->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -94,8 +128,10 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="8dp"
                 app:cardBackgroundColor="@color/bg_card"
-                app:cardCornerRadius="8dp"
-                app:cardElevation="2dp">
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border_color"
+                app:strokeWidth="1dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -103,14 +139,28 @@
                     android:orientation="vertical"
                     android:padding="12dp">
 
-                    <TextView
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="相机操作"
-                        android:textColor="@color/color_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="8dp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <View
+                            android:layout_width="3dp"
+                            android:layout_height="16dp"
+                            android:background="@color/color_primary"
+                            android:layout_marginEnd="6dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="相机操作"
+                            android:textColor="@color/color_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
 
                     <!-- 相机操作按钮一排：放大、缩小、拍照、录像（录像开始后文字变为“停止录像”） -->
                     <LinearLayout
@@ -121,6 +171,7 @@
 
                         <Button
                             android:id="@+id/btnZoomIn"
+                            style="@style/Widget.CarApp.Button.Secondary"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -129,6 +180,7 @@
 
                         <Button
                             android:id="@+id/btnZoomOut"
+                            style="@style/Widget.CarApp.Button.Secondary"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -137,6 +189,7 @@
 
                         <Button
                             android:id="@+id/btnSnap"
+                            style="@style/Widget.CarApp.Button.Secondary"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -145,6 +198,7 @@
 
                         <Button
                             android:id="@+id/btnRecord"
+                            style="@style/Widget.CarApp.Button.Secondary"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -162,8 +216,10 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="8dp"
                 app:cardBackgroundColor="@color/bg_card"
-                app:cardCornerRadius="8dp"
-                app:cardElevation="2dp">
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border_color"
+                app:strokeWidth="1dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -172,15 +228,28 @@
                     android:gravity="center"
                     android:padding="12dp">
 
-                    <TextView
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="控制"
-                        android:textColor="@color/color_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:gravity="start"
-                        android:layout_marginBottom="8dp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <View
+                            android:layout_width="3dp"
+                            android:layout_height="16dp"
+                            android:background="@color/color_primary"
+                            android:layout_marginEnd="6dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="控制"
+                            android:textColor="@color/color_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
 
                     <!-- 前进按钮，单独一行居中 -->
                     <Button
@@ -188,6 +257,8 @@
                         android:layout_width="120dp"
                         android:layout_height="wrap_content"
                         android:text="前进"
+                        app:icon="@drawable/ic_arrow_upward"
+                        app:iconGravity="top"
                         android:layout_marginBottom="16dp" />
 
                     <!-- 左转、停止、右转按钮放在同一行 -->
@@ -202,11 +273,14 @@
                             android:layout_width="100dp"
                             android:layout_height="wrap_content"
                             android:text="左转"
+                            app:icon="@drawable/ic_arrow_back"
+                            app:iconGravity="top"
                             android:layout_marginEnd="16dp" />
 
                         <Button
                             android:id="@+id/btnStop"
-                            android:layout_width="100dp"
+                            style="@style/Widget.CarApp.Button.Danger"
+                            android:layout_width="110dp"
                             android:layout_height="wrap_content"
                             android:text="停止"
                             android:layout_marginEnd="16dp" />
@@ -215,7 +289,9 @@
                             android:id="@+id/btnRight"
                             android:layout_width="100dp"
                             android:layout_height="wrap_content"
-                            android:text="右转" />
+                            android:text="右转"
+                            app:icon="@drawable/ic_arrow_forward"
+                            app:iconGravity="top" />
 
                     </LinearLayout>
 
@@ -225,7 +301,18 @@
                         android:layout_width="120dp"
                         android:layout_height="wrap_content"
                         android:text="后退"
+                        app:icon="@drawable/ic_arrow_downward"
+                        app:iconGravity="top"
                         android:layout_marginTop="16dp" />
+
+                    <!-- 体感控制开关：打开后用手机加速度传感器，倾斜手机控制小车方向 -->
+                    <Switch
+                        android:id="@+id/swMotionControl"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="体感控制（倾斜手机）"
+                        android:textColor="@color/text_primary" />
 
                 </LinearLayout>
 
@@ -237,8 +324,10 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="8dp"
                 app:cardBackgroundColor="@color/bg_card"
-                app:cardCornerRadius="8dp"
-                app:cardElevation="2dp">
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border_color"
+                app:strokeWidth="1dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -246,14 +335,28 @@
                     android:orientation="vertical"
                     android:padding="12dp">
 
-                    <TextView
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="灯光与喇叭"
-                        android:textColor="@color/color_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="8dp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <View
+                            android:layout_width="3dp"
+                            android:layout_height="16dp"
+                            android:background="@color/color_primary"
+                            android:layout_marginEnd="6dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="灯光与喇叭"
+                            android:textColor="@color/color_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
 
                     <!-- LED 颜色按钮一排：红、绿、蓝、白、关 -->
                     <LinearLayout
@@ -265,6 +368,7 @@
 
                         <Button
                             android:id="@+id/btnLedRed"
+                            style="@style/Widget.CarApp.Button.Secondary"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -273,6 +377,7 @@
 
                         <Button
                             android:id="@+id/btnLedGreen"
+                            style="@style/Widget.CarApp.Button.Secondary"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -281,6 +386,7 @@
 
                         <Button
                             android:id="@+id/btnLedBlue"
+                            style="@style/Widget.CarApp.Button.Secondary"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -289,6 +395,7 @@
 
                         <Button
                             android:id="@+id/btnLedWhite"
+                            style="@style/Widget.CarApp.Button.Secondary"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -297,6 +404,7 @@
 
                         <Button
                             android:id="@+id/btnLedOff"
+                            style="@style/Widget.CarApp.Button.Secondary"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -314,6 +422,7 @@
 
                         <Button
                             android:id="@+id/btnLedModeSteady"
+                            style="@style/Widget.CarApp.Button.Secondary"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -322,6 +431,7 @@
 
                         <Button
                             android:id="@+id/btnLedModeFlow"
+                            style="@style/Widget.CarApp.Button.Secondary"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -330,6 +440,7 @@
 
                         <Button
                             android:id="@+id/btnLedModeBlink"
+                            style="@style/Widget.CarApp.Button.Secondary"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -340,6 +451,7 @@
                     <!-- 喇叭按钮：单击在“响/停”两个状态间切换 -->
                     <Button
                         android:id="@+id/btnBuzzer"
+                        style="@style/Widget.CarApp.Button.Secondary"
                         android:layout_width="120dp"
                         android:layout_height="wrap_content"
                         android:text="喇叭：响"
@@ -363,8 +475,10 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="8dp"
                 app:cardBackgroundColor="@color/bg_card"
-                app:cardCornerRadius="8dp"
-                app:cardElevation="2dp">
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border_color"
+                app:strokeWidth="1dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -372,18 +486,33 @@
                     android:orientation="vertical"
                     android:padding="12dp">
 
-                    <TextView
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="机械臂控制"
-                        android:textColor="@color/color_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="8dp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <View
+                            android:layout_width="3dp"
+                            android:layout_height="16dp"
+                            android:background="@color/color_primary"
+                            android:layout_marginEnd="6dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="机械臂控制"
+                            android:textColor="@color/color_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
 
                     <!-- 机械臂归位按钮：一键让机械臂回到预设初始姿态 -->
                     <Button
                         android:id="@+id/btnArmReset"
+                        style="@style/Widget.CarApp.Button.Secondary"
                         android:layout_width="120dp"
                         android:layout_height="wrap_content"
                         android:text="机械臂归位"
@@ -597,8 +726,10 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="8dp"
                 app:cardBackgroundColor="@color/bg_card"
-                app:cardCornerRadius="8dp"
-                app:cardElevation="2dp">
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border_color"
+                app:strokeWidth="1dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -606,14 +737,28 @@
                     android:orientation="vertical"
                     android:padding="12dp">
 
-                    <TextView
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="AI 对话"
-                        android:textColor="@color/color_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="8dp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <View
+                            android:layout_width="3dp"
+                            android:layout_height="16dp"
+                            android:background="@color/color_primary"
+                            android:layout_marginEnd="6dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="AI 对话"
+                            android:textColor="@color/color_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
 
                     <!-- 聊天记录显示区：固定高度，内容超出后可上下滚动
                          （滚动能力由代码设置 ScrollingMovementMethod 开启） -->
@@ -642,6 +787,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
+                            android:background="@drawable/bg_edittext_chat"
                             android:hint="输入内容"
                             android:textColor="@color/text_primary"
                             android:textColorHint="@color/text_secondary"
@@ -658,6 +804,7 @@
                         <!-- 拍照发AI：抓取当前摄像头画面并连同文字一起发给 AI -->
                         <Button
                             android:id="@+id/btnSnapAndChat"
+                            style="@style/Widget.CarApp.Button.Secondary"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="8dp"
@@ -675,8 +822,10 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="8dp"
                 app:cardBackgroundColor="@color/bg_card"
-                app:cardCornerRadius="8dp"
-                app:cardElevation="2dp">
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border_color"
+                app:strokeWidth="1dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -685,27 +834,50 @@
                     android:padding="12dp">
 
                     <!-- SLAM 地图区域标题，同时用于展示地图加载状态文案 -->
-                    <TextView
-                        android:id="@+id/tvMapTitle"
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="SLAM 地图（占位）"
-                        android:textColor="@color/color_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="8dp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <View
+                            android:layout_width="3dp"
+                            android:layout_height="16dp"
+                            android:background="@color/color_primary"
+                            android:layout_marginEnd="6dp" />
+
+                        <TextView
+                            android:id="@+id/tvMapTitle"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="SLAM 地图（占位）"
+                            android:textColor="@color/color_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
 
                     <!-- 地图显示区：由代码用 Canvas 画格子图，点击可发送导航目标点 -->
                     <!-- scaleType 用 fitXY 是为了让 8x8 等比的地图铺满区域，配合 handleMapTouch 里的按比例换算 -->
-                    <!-- 地图背景保持白色，与位图底色一致，避免周围露出边框被误认为"空白" -->
-                    <ImageView
-                        android:id="@+id/ivMap"
+                    <!-- 外层包一层青色细描边容器，内部地图背景仍保持白色，与位图底色一致 -->
+                    <FrameLayout
                         android:layout_width="match_parent"
                         android:layout_height="240dp"
-                        android:scaleType="fitXY"
-                        android:background="#FFFFFF"
-                        android:contentDescription="SLAM 地图"
-                        android:layout_marginBottom="8dp" />
+                        android:background="@color/color_primary"
+                        android:padding="1dp"
+                        android:layout_marginBottom="8dp">
+
+                        <ImageView
+                            android:id="@+id/ivMap"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:scaleType="fitXY"
+                            android:background="#FFFFFF"
+                            android:contentDescription="SLAM 地图" />
+
+                    </FrameLayout>
 
                     <!-- 地图状态提示：显示加载结果与点击导航的发送结果 -->
                     <TextView
@@ -726,8 +898,10 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="8dp"
                 app:cardBackgroundColor="@color/bg_card"
-                app:cardCornerRadius="8dp"
-                app:cardElevation="2dp">
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border_color"
+                app:strokeWidth="1dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -735,14 +909,28 @@
                     android:orientation="vertical"
                     android:padding="12dp">
 
-                    <TextView
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="多点巡逻"
-                        android:textColor="@color/color_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="8dp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <View
+                            android:layout_width="3dp"
+                            android:layout_height="16dp"
+                            android:background="@color/color_primary"
+                            android:layout_marginEnd="6dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="多点巡逻"
+                            android:textColor="@color/color_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
 
                     <!-- 添加巡逻点按钮一排：A、B、C 三个点，取地图上最近一次点击的坐标 -->
                     <LinearLayout
@@ -754,6 +942,7 @@
 
                         <Button
                             android:id="@+id/btnAddPointA"
+                            style="@style/Widget.CarApp.Button.Secondary"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -762,6 +951,7 @@
 
                         <Button
                             android:id="@+id/btnAddPointB"
+                            style="@style/Widget.CarApp.Button.Secondary"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -770,6 +960,7 @@
 
                         <Button
                             android:id="@+id/btnAddPointC"
+                            style="@style/Widget.CarApp.Button.Secondary"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -804,6 +995,7 @@
 
                         <Button
                             android:id="@+id/btnStopPatrol"
+                            style="@style/Widget.CarApp.Button.Danger"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -821,8 +1013,10 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="8dp"
                 app:cardBackgroundColor="@color/bg_card"
-                app:cardCornerRadius="8dp"
-                app:cardElevation="2dp">
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border_color"
+                app:strokeWidth="1dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -830,14 +1024,28 @@
                     android:orientation="vertical"
                     android:padding="12dp">
 
-                    <TextView
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="动作录制"
-                        android:textColor="@color/color_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="8dp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <View
+                            android:layout_width="3dp"
+                            android:layout_height="16dp"
+                            android:background="@color/color_primary"
+                            android:layout_marginEnd="6dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="动作录制"
+                            android:textColor="@color/color_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
 
                     <!-- 开始录制、停止录制、回放按钮一排 -->
                     <LinearLayout
@@ -857,6 +1065,7 @@
 
                         <Button
                             android:id="@+id/btnStopRecord"
+                            style="@style/Widget.CarApp.Button.Danger"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -865,6 +1074,7 @@
 
                         <Button
                             android:id="@+id/btnPlayRecord"
+                            style="@style/Widget.CarApp.Button.Secondary"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -892,6 +1102,7 @@
             <!-- 设置按钮：点击弹出对话框，可修改后端 IP -->
             <Button
                 android:id="@+id/btnSettings"
+                style="@style/Widget.CarApp.Button.Secondary"
                 android:layout_width="140dp"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"

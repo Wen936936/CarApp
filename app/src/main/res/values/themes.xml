@@ -6,15 +6,34 @@
         <item name="android:windowBackground">@color/bg_primary</item>
         <item name="android:textColorPrimary">@color/text_primary</item>
         <item name="android:textColorSecondary">@color/text_secondary</item>
-        <item name="materialButtonStyle">@style/Widget.CarApp.Button</item>
+        <item name="materialButtonStyle">@style/Widget.CarApp.Button.Primary</item>
     </style>
 
     <style name="Theme.CarApp" parent="Base.Theme.CarApp" />
 
-    <!-- 统一按钮风格：青底白字、4dp 圆角，所有 Button 自动套用 -->
-    <style name="Widget.CarApp.Button" parent="Widget.Material3.Button">
+    <!-- 主按钮：青底深色字，8dp 圆角，无阴影，默认套用在所有 Button 上 -->
+    <style name="Widget.CarApp.Button.Primary" parent="Widget.Material3.Button">
         <item name="backgroundTint">@color/color_primary</item>
-        <item name="android:textColor">@color/text_primary</item>
-        <item name="cornerRadius">4dp</item>
+        <item name="android:textColor">@color/text_on_accent</item>
+        <item name="iconTint">@color/text_on_accent</item>
+        <item name="cornerRadius">8dp</item>
+        <item name="elevation">0dp</item>
+    </style>
+
+    <!-- 次按钮：透明底、青色描边与文字 -->
+    <style name="Widget.CarApp.Button.Secondary" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="strokeColor">@color/color_primary</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="android:textColor">@color/color_primary</item>
+        <item name="iconTint">@color/color_primary</item>
+        <item name="cornerRadius">8dp</item>
+    </style>
+
+    <!-- 危险按钮：橙底深色字，用于各类"停止"操作 -->
+    <style name="Widget.CarApp.Button.Danger" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/color_danger</item>
+        <item name="android:textColor">@color/text_on_accent</item>
+        <item name="cornerRadius">8dp</item>
+        <item name="elevation">0dp</item>
     </style>
 </resources>

@@ -4,9 +4,13 @@
     <color name="white">#FFFFFFFF</color>
 
     <!-- 深色科技风主题配色 -->
-    <color name="bg_primary">#121212</color>
-    <color name="bg_card">#1E1E1E</color>
-    <color name="color_primary">#00BCD4</color>
+    <color name="bg_primary">#0D1117</color>
+    <color name="bg_card">#161B22</color>
+    <color name="border_color">#30363D</color>
+    <color name="color_primary">#00E5FF</color>
+    <color name="color_danger">#FFA726</color>
     <color name="text_primary">#FFFFFF</color>
-    <color name="text_secondary">#B0B0B0</color>
+    <color name="text_secondary">#8B949E</color>
+    <!-- 用于青色/橙色按钮上的深色文字，保证高对比度 -->
+    <color name="text_on_accent">#0D1117</color>
 </resources>

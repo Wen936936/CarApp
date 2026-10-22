@@ -1,6 +1,7 @@
 package com.example.carapp
 
 import android.content.ContentValues
+import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -8,6 +9,10 @@ import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.drawable.BitmapDrawable
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Bundle
 import android.os.Build
 import android.os.Environment
@@ -18,6 +23,7 @@ import android.util.Base64
 import android.util.Log
 import android.text.method.ScrollingMovementMethod
 import android.view.MotionEvent
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
@@ -27,8 +33,14 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import okhttp3.Call
 import okhttp3.Callback
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.MediaType.Companion.toMediaType
@@ -59,7 +71,7 @@ data class RecordedAction(
  * 同时通过 WebSocket 接收后端推送的摄像头图像并实时显示
  * 另外通过 WebSocket 接收 AI 回复，并用 POST 把聊天文字发送给 AI
  */
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), SensorEventListener {
 
     // OkHttp 客户端，全局复用一个实例，避免重复创建连接池
     private val client = OkHttpClient()
@@ -127,6 +139,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ============ 体感控制相关 ============
+
+    // 传感器管理器，用来取得加速度传感器并注册/注销监听
+    private lateinit var sensorManager: SensorManager
+
+    // 加速度传感器对象，设备不支持时为 null
+    private var accelerometer: Sensor? = null
+
+    // 体感控制开关
+    private lateinit var swMotionControl: Switch
+
+    // 上一次实际发出的体感指令，用于防抖：算出的指令和它相同就不重复发请求
+    private var lastMotionCommand: String? = null
+
     // 喇叭当前是否处于响的状态，用于点击按钮时在 响/停 之间切换
     private var isBuzzerOn = false
 
@@ -188,20 +214,58 @@ class MainActivity : AppCompatActivity() {
     // ============ 设置：后端地址读取/保存 ============
 
     /**
+     * 给后端地址补协议头：已写了 http:// 或 https:// 就原样保留，否则直接拼上 http://
+     * 只做 trim() 和前缀判断，不做任何替换或截取，避免把端口和 IP 拼错
+     */
+    private fun normalizeBaseUrl(raw: String): String {
+        val trimmed = raw.trim()
+        return if (trimmed.startsWith("http://", ignoreCase = true) ||
+            trimmed.startsWith("https://", ignoreCase = true)
+        ) {
+            trimmed
+        } else {
+            "http://$trimmed"
+        }
+    }
+
+    /**
      * 从 SharedPreferences 读取后端地址，没存过时默认用模拟器可访问的 10.0.2.2:8080
+     * 读出来先补协议头，保证各处拼出来的 URL 都是 OkHttp 能解析的
      */
     private fun loadBaseUrl(): String {
         val prefs = getSharedPreferences("car_app_prefs", MODE_PRIVATE)
-        return prefs.getString("base_url", "http://10.0.2.2:8080") ?: "http://10.0.2.2:8080"
+        val raw = prefs.getString("base_url", "http://10.0.2.2:8080") ?: "http://10.0.2.2:8080"
+        return normalizeBaseUrl(raw)
+    }
+
+    /**
+     * 解析地址，解析失败时只弹 Toast 提示，不再让 OkHttp 抛 IllegalArgumentException 闪退
+     * 返回 true 表示可以继续发请求
+     */
+    private fun checkUrl(url: String, extraStatus: TextView? = null): Boolean {
+        // OkHttp 的 HttpUrl 只认 http/https，校验 WebSocket 地址时先把 ws/wss 换回 http/https
+        val httpUrl = url
+            .replaceFirst("ws://", "http://")
+            .replaceFirst("wss://", "https://")
+        if (httpUrl.toHttpUrlOrNull() == null) {
+            Log.e("Net", "地址解析失败：$url")
+            Toast.makeText(this, "地址解析失败", Toast.LENGTH_SHORT).show()
+            extraStatus?.text = "地址解析失败，请到设置里修改后端地址"
+            return false
+        }
+        return true
     }
 
     /**
      * 把当前后端地址换算成 WebSocket 地址：http -> ws，https -> wss，再拼上传入的路径
      */
     private fun loadWsUrl(path: String): String {
-        val wsBase = loadBaseUrl()
-            .replace("https://", "wss://")
-            .replace("http://", "ws://")
+        val base = loadBaseUrl()
+        val wsBase = if (base.startsWith("https://", ignoreCase = true)) {
+            "wss://" + base.substring(8)
+        } else {
+            "ws://" + base.substring(7)
+        }
         return "$wsBase$path"
     }
 
@@ -213,6 +277,11 @@ class MainActivity : AppCompatActivity() {
         val editText = EditText(this)
         editText.setText(loadBaseUrl())
         editText.hint = "例如 http://192.168.0.105:8080"
+        // 强制白底黑字：弹窗底色随系统日/夜模式变化，只固定文字颜色会在深色弹窗上变成黑底黑字，
+        // 所以连背景一起固定成白底，保证任何主题下输入内容都清晰可见
+        editText.setTextColor(Color.BLACK)
+        editText.setHintTextColor(Color.parseColor("#888888"))
+        editText.background = ContextCompat.getDrawable(this, R.drawable.bg_edittext_dialog)
         // 给输入框加一点内边距，避免紧贴对话框边缘
         val padding = (16 * resources.displayMetrics.density).toInt()
         editText.setPadding(padding, padding, padding, padding)
@@ -221,6 +290,7 @@ class MainActivity : AppCompatActivity() {
             .setTitle("设置后端地址")
             .setView(editText)
             .setPositiveButton("保存") { _, _ ->
+                // 只去掉首尾空格，协议头交给 normalizeBaseUrl 处理，其余原样保存
                 val input = editText.text.toString().trim()
                 if (input.isEmpty()) {
                     Toast.makeText(this, "地址不能为空", Toast.LENGTH_SHORT).show()
@@ -228,7 +298,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 getSharedPreferences("car_app_prefs", MODE_PRIVATE)
                     .edit()
-                    .putString("base_url", input)
+                    .putString("base_url", normalizeBaseUrl(input))
                     .apply()
                 Toast.makeText(this, "已保存，重启 App 后生效", Toast.LENGTH_SHORT).show()
             }
@@ -238,7 +308,57 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // ============ 沉浸式全屏：隐藏顶部状态栏 ============
+        // 1) setDecorFitsSystemWindows(false) 让布局延伸到系统栏区域（否则内容仍会被状态栏挤压）；
+        //    注意调用位置必须在 setContentView 之前，这样窗口装饰参数才会作用于本次布局
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        // 2) 通过 WindowInsetsControllerCompat 隐藏状态栏
+        val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+        insetsController.hide(WindowInsetsCompat.Type.statusBars())
+        // 状态栏隐藏后允许从屏幕边缘滑动临时呼出（部分机型需要这个参数才生效）
+        insetsController.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        // 主题是深色底，系统栏图标必须用浅色，否则导航栏手势条/图标在深色背景上看不见
+        insetsController.isAppearanceLightStatusBars = false
+        insetsController.isAppearanceLightNavigationBars = false
+
         setContentView(R.layout.activity_main)
+
+        // ============ 给顶层补上系统栏安全区 ============
+        // setDecorFitsSystemWindows(false) 之后内容会一直画到屏幕边缘：
+        // 1. 顶栏需要额外加状态栏/刘海高度，保证“车控 App”标题不被遮挡；
+        // 2. 根布局需要额外加左右/底部安全区，避免横屏时被导航栏压住底部的“设置”按钮。
+        // 为了不让多次回调重复累加内边距，这里先记下布局里定义的原始内边距，再在回调里取“原始值 + 系统栏高度”。
+        val topBar = findViewById<View>(R.id.topBar)
+        val topBarOriginalPaddingTop = topBar.paddingTop
+        ViewCompat.setOnApplyWindowInsetsListener(topBar) { view, insets ->
+            val barInsets = insets.getInsets(
+                WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            view.setPadding(
+                view.paddingLeft,
+                topBarOriginalPaddingTop + barInsets.top,
+                view.paddingRight,
+                view.paddingBottom
+            )
+            // 返回原 insets，让其他控件继续正常接收系统栏信息
+            insets
+        }
+
+        val rootLayout = findViewById<View>(R.id.rootLayout)
+        ViewCompat.setOnApplyWindowInsetsListener(rootLayout) { view, insets ->
+            val barInsets = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            view.setPadding(
+                barInsets.left,
+                view.paddingTop,
+                barInsets.right,
+                barInsets.bottom
+            )
+            insets
+        }
 
         tvStatus = findViewById(R.id.tvStatus)
         ivCamera = findViewById(R.id.ivCamera)
@@ -279,6 +399,27 @@ class MainActivity : AppCompatActivity() {
 
         // 机械臂归位按钮：让机械臂回到预设初始姿态
         findViewById<Button>(R.id.btnArmReset).setOnClickListener { sendArmReset() }
+
+        // ============ 体感控制：倾斜手机控制方向 ============
+        // 取系统传感器服务与加速度传感器，设备没有该传感器时 accelerometer 为 null
+        sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
+        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        swMotionControl = findViewById(R.id.swMotionControl)
+        swMotionControl.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                // 打开体感前先锁定当前屏幕方向：
+                // 横竖屏切换时加速度传感器的 x/y 轴含义会跟着屏幕一起变，
+                // 倾斜判断会瞬间反转，导致小车乱动。
+                // SCREEN_ORIENTATION_LOCKED 表示锁定在设置这一刻的方向（API 18+）
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED
+                startMotionControl()
+            } else {
+                // 关闭体感后恢复自动旋转：SENSOR 跟随设备传感器自由横竖屏，
+                // 同时也能覆盖 AndroidManifest 里的 screenOrientation 属性
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
+                stopMotionControl()
+            }
+        }
 
         // 机械臂 6 个关节滑动条（base、p1~p5）：拖动中只更新数值显示，松手后统一发送一次指令
         seekBase = bindArmSeekBar(R.id.seekBase, R.id.tvBaseValue)
@@ -677,12 +818,15 @@ class MainActivity : AppCompatActivity() {
      * data 按行优先排列，0 表示空地（白块），100 表示障碍（黑块）
      */
     private fun loadMap() {
-        val request = Request.Builder()
-            .url("${loadBaseUrl()}/car/map")
-            .get()
-            .build()
+        val url = "${loadBaseUrl()}/car/map"
+        if (!checkUrl(url, tvMapStatus)) return
 
         try {
+            val request = Request.Builder()
+                .url(url)
+                .get()
+                .build()
+
             // 使用异步请求，避免阻塞主线程
             client.newCall(request).enqueue(object : Callback {
 
@@ -853,13 +997,16 @@ class MainActivity : AppCompatActivity() {
      */
     private fun sendNavGoal(x: Int, y: Int) {
         val url = "${loadBaseUrl()}/car/nav/goal?x=$x&y=$y"
+        if (!checkUrl(url, tvMapStatus)) return
+
         val emptyBody = "".toRequestBody(null)
-        val request = Request.Builder()
-            .url(url)
-            .post(emptyBody)
-            .build()
 
         try {
+            val request = Request.Builder()
+                .url(url)
+                .post(emptyBody)
+                .build()
+
             // 使用异步请求，避免阻塞主线程
             client.newCall(request).enqueue(object : Callback {
 
@@ -1035,11 +1182,14 @@ class MainActivity : AppCompatActivity() {
      * 消息格式约定为 JSON：{"text": "AI 回复内容"}
      */
     private fun connectChatWebSocket() {
-        val request = Request.Builder()
-            .url(loadWsUrl("/ws/chat"))
-            .build()
+        val wsUrl = loadWsUrl("/ws/chat")
+        if (!checkUrl(wsUrl)) return
 
         try {
+            val request = Request.Builder()
+                .url(wsUrl)
+                .build()
+
             chatWebSocket = client.newWebSocket(request, object : WebSocketListener() {
 
                 // 连接建立成功
@@ -1133,12 +1283,14 @@ class MainActivity : AppCompatActivity() {
         // Content-Type 设为 application/json，RequestBody 带上这个 MediaType 后 OkHttp 会自动写入请求头
         val requestBody = json.toRequestBody("application/json".toMediaType())
         val url = "${loadBaseUrl()}/car/ai/chat"
-        val request = Request.Builder()
-            .url(url)
-            .post(requestBody)
-            .build()
+        if (!checkUrl(url)) return
 
         try {
+            val request = Request.Builder()
+                .url(url)
+                .post(requestBody)
+                .build()
+
             // 使用异步请求，避免阻塞主线程
             client.newCall(request).enqueue(object : Callback {
 
@@ -1175,6 +1327,10 @@ class MainActivity : AppCompatActivity() {
      * 3. 后端接口已改为 POST + JSON body：{"text":"xxx","image":"base64字符串"}，AI 的回复仍由 WebSocket 推送
      */
     private fun snapAndSendToAi() {
+        // 地址非法时直接提示，既避免闪退，也省掉后面的压缩和 Base64 编码
+        val url = "${loadBaseUrl()}/car/ai/chat"
+        if (!checkUrl(url)) return
+
         // 复用现有的抓帧方法，没有画面时直接提示并返回
         val bitmap = captureCameraBitmap() ?: run {
             Toast.makeText(this, "还没有画面，无法发送", Toast.LENGTH_SHORT).show()
@@ -1199,13 +1355,13 @@ class MainActivity : AppCompatActivity() {
         }.toString()
         // Content-Type 设为 application/json，RequestBody 带上这个 MediaType 后 OkHttp 会自动写入请求头
         val requestBody = json.toRequestBody("application/json".toMediaType())
-        val url = "${loadBaseUrl()}/car/ai/chat"
-        val request = Request.Builder()
-            .url(url)
-            .post(requestBody)
-            .build()
 
         try {
+            val request = Request.Builder()
+                .url(url)
+                .post(requestBody)
+                .build()
+
             // 使用异步请求，避免阻塞主线程
             client.newCall(request).enqueue(object : Callback {
 
@@ -1283,11 +1439,14 @@ class MainActivity : AppCompatActivity() {
      * 连接后端摄像头 WebSocket，接收图像推送并显示
      */
     private fun connectCameraWebSocket() {
-        val request = Request.Builder()
-            .url(loadWsUrl("/ws/camera"))
-            .build()
+        val wsUrl = loadWsUrl("/ws/camera")
+        if (!checkUrl(wsUrl)) return
 
         try {
+            val request = Request.Builder()
+                .url(wsUrl)
+                .build()
+
             cameraWebSocket = client.newWebSocket(request, object : WebSocketListener() {
 
                 // 连接建立成功
@@ -1331,8 +1490,87 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 开启体感控制：注册加速度传感器监听
+     * 先把 lastMotionCommand 清空，保证重新开启后第一帧无论算出什么指令都会发出去
+     */
+    private fun startMotionControl() {
+        val sensor = accelerometer
+        if (sensor == null) {
+            // 设备没有加速度传感器，回弹开关并提示
+            Toast.makeText(this, "当前设备不支持加速度传感器", Toast.LENGTH_SHORT).show()
+            swMotionControl.isChecked = false
+            return
+        }
+        lastMotionCommand = null
+        // SENSOR_DELAY_NORMAL 约 200ms 一次，足够做倾斜判断，又不会产生过多回调
+        sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+        tvStatus.text = "体感控制已开启"
+    }
+
+    /**
+     * 关闭体感控制：注销传感器监听
+     * 关闭时会补发一次 stop，避免关闭瞬间小车还保持前进/转向状态
+     */
+    private fun stopMotionControl() {
+        sensorManager.unregisterListener(this)
+        if (lastMotionCommand != null && lastMotionCommand != "stop") {
+            sendCommand("stop")
+        }
+        lastMotionCommand = null
+    }
+
+    /**
+     * 加速度传感器数据变化：根据倾斜方向算出指令
+     * 手机平放时 y 接近 0（前倾 y > 3，后倾 y < -3），左右倾斜看 x 轴；
+     * 只有指令发生变化时才发请求，避免传感器高频回调刷爆后端
+     */
+    override fun onSensorChanged(event: SensorEvent?) {
+        if (event == null || event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
+
+        val x = event.values[0]
+        val y = event.values[1]
+
+        val command = when {
+            y > 3.0f -> "forward"
+            y < -3.0f -> "backward"
+            x < -3.0f -> "left"
+            x > 3.0f -> "right"
+            else -> "stop"
+        }
+
+        // 与上一次发送的指令相同时直接返回，这就是防抖的核心
+        if (command == lastMotionCommand) return
+        lastMotionCommand = command
+        sendCommand(command)
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+        // 加速度传感器精度变化不需要处理
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // 退到后台时注销传感器，防止后台持续回调耗电
+        sensorManager.unregisterListener(this)
+    }
+
+    /**
+     * 回到前台时如果开关还处于打开状态（比如刚从后台切回、或横竖屏旋转重建了 Activity），
+     * 重新注册监听，否则会出现“开关是开的但体感不生效”的情况
+     */
+    override fun onResume() {
+        super.onResume()
+        val sensor = accelerometer
+        if (sensor != null && swMotionControl.isChecked) {
+            sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        // 页面销毁时再次注销，双保险（onPause 后一般不会再收到回调，但 keep 防御性代码）
+        sensorManager.unregisterListener(this)
         // 页面销毁时关闭 WebSocket，避免内存泄漏和无效连接
         cameraWebSocket?.close(1000, "页面关闭")
         chatWebSocket?.close(1000, "页面关闭")
@@ -1375,12 +1613,14 @@ class MainActivity : AppCompatActivity() {
         recordAction("command", action)
 
         val url = "${loadBaseUrl()}/car/command?action=$action"
-        val request = Request.Builder()
-            .url(url)
-            .get()
-            .build()
+        if (!checkUrl(url)) return
 
         try {
+            val request = Request.Builder()
+                .url(url)
+                .get()
+                .build()
+
             // 使用异步请求，避免阻塞主线程
             client.newCall(request).enqueue(object : Callback {
 
@@ -1480,13 +1720,19 @@ class MainActivity : AppCompatActivity() {
      * url 请求地址，description 用于在 tvStatus 上显示的指令描述，onResult 请求结束后的回调（是否成功）
      */
     private fun sendSimplePostCommand(url: String, description: String, onResult: ((Boolean) -> Unit)? = null) {
+        if (!checkUrl(url)) {
+            onResult?.invoke(false)
+            return
+        }
+
         val emptyBody = "".toRequestBody(null)
-        val request = Request.Builder()
-            .url(url)
-            .post(emptyBody)
-            .build()
 
         try {
+            val request = Request.Builder()
+                .url(url)
+                .post(emptyBody)
+                .build()
+
             // 使用异步请求，避免阻塞主线程
             client.newCall(request).enqueue(object : Callback {
 
