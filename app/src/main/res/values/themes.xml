@@ -11,13 +11,26 @@
 
     <style name="Theme.CarApp" parent="Base.Theme.CarApp" />
 
-    <!-- 主按钮：青底深色字，8dp 圆角，无阴影，默认套用在所有 Button 上 -->
+    <!-- 主按钮：青底深色字，8dp 圆角，无阴影，默认套用在所有 Button 上
+         Material3 按钮默认 minWidth=88dp、左右内边距 24dp，一排放 4~5 个时会超过屏幕宽度，
+         每个按钮只能被压成细长条，所以这里统一把 minWidth 清零并把内边距收窄 -->
     <style name="Widget.CarApp.Button.Primary" parent="Widget.Material3.Button">
         <item name="backgroundTint">@color/color_primary</item>
         <item name="android:textColor">@color/text_on_accent</item>
         <item name="iconTint">@color/text_on_accent</item>
         <item name="cornerRadius">8dp</item>
         <item name="elevation">0dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:paddingStart">8dp</item>
+        <item name="android:paddingLeft">8dp</item>
+        <item name="android:paddingRight">8dp</item>
+        <item name="android:paddingEnd">8dp</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetRight">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:maxLines">1</item>
     </style>
 
     <!-- 次按钮：透明底、青色描边与文字 -->
@@ -27,6 +40,17 @@
         <item name="android:textColor">@color/color_primary</item>
         <item name="iconTint">@color/color_primary</item>
         <item name="cornerRadius">8dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:paddingStart">8dp</item>
+        <item name="android:paddingLeft">8dp</item>
+        <item name="android:paddingRight">8dp</item>
+        <item name="android:paddingEnd">8dp</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetRight">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:maxLines">1</item>
     </style>
 
     <!-- 危险按钮：橙底深色字，用于各类"停止"操作 -->
@@ -35,5 +59,16 @@
         <item name="android:textColor">@color/text_on_accent</item>
         <item name="cornerRadius">8dp</item>
         <item name="elevation">0dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:paddingStart">8dp</item>
+        <item name="android:paddingLeft">8dp</item>
+        <item name="android:paddingRight">8dp</item>
+        <item name="android:paddingEnd">8dp</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetRight">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:maxLines">1</item>
     </style>
 </resources>

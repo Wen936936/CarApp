@@ -38,6 +38,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import io.github.controlwear.virtual.joystick.android.JoystickView
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -152,6 +153,28 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     // 上一次实际发出的体感指令，用于防抖：算出的指令和它相同就不重复发请求
     private var lastMotionCommand: String? = null
+
+    // ============ 横屏摇杆控制相关 ============
+
+    // 摇杆“持续发送”的 Handler 与任务：拖动期间按固定间隔重复发送当前方向指令，
+    // 和 patrolHandler / recordHandler 一样的做法，避免摇杆每 50ms 回调一次就直接刷爆后端
+    private val joystickHandler = Handler(Looper.getMainLooper())
+
+    // 当前摇杆对应的指令，松手后置为 null
+    private var joystickCommand: String? = null
+
+    // 上一次真正发出去的摇杆指令，用于避免同方向重复发请求
+    private var lastJoystickSent: String? = null
+
+    // 摇杆定时发送任务：只要 joystickCommand 还有值，就发一次并排下一次
+    private val joystickTask = object : Runnable {
+        override fun run() {
+            val command = joystickCommand ?: return
+            if (command == "stop") return
+            sendCommand(command)
+            joystickHandler.postDelayed(this, 200)
+        }
+    }
 
     // 喇叭当前是否处于响的状态，用于点击按钮时在 响/停 之间切换
     private var isBuzzerOn = false
@@ -325,27 +348,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
         setContentView(R.layout.activity_main)
 
-        // ============ 给顶层补上系统栏安全区 ============
-        // setDecorFitsSystemWindows(false) 之后内容会一直画到屏幕边缘：
-        // 1. 顶栏需要额外加状态栏/刘海高度，保证“车控 App”标题不被遮挡；
-        // 2. 根布局需要额外加左右/底部安全区，避免横屏时被导航栏压住底部的“设置”按钮。
-        // 为了不让多次回调重复累加内边距，这里先记下布局里定义的原始内边距，再在回调里取“原始值 + 系统栏高度”。
-        val topBar = findViewById<View>(R.id.topBar)
-        val topBarOriginalPaddingTop = topBar.paddingTop
-        ViewCompat.setOnApplyWindowInsetsListener(topBar) { view, insets ->
-            val barInsets = insets.getInsets(
-                WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout()
-            )
-            view.setPadding(
-                view.paddingLeft,
-                topBarOriginalPaddingTop + barInsets.top,
-                view.paddingRight,
-                view.paddingBottom
-            )
-            // 返回原 insets，让其他控件继续正常接收系统栏信息
-            insets
-        }
-
+        // ============ 给根布局补上系统栏安全区 ============
+        // setDecorFitsSystemWindows(false) 之后内容会一直画到屏幕边缘，
+        // 这里给根布局加左右/底部安全区，避免横屏时被导航栏压住左下角的摇杆和右侧卡片。
         val rootLayout = findViewById<View>(R.id.rootLayout)
         ViewCompat.setOnApplyWindowInsetsListener(rootLayout) { view, insets ->
             val barInsets = insets.getInsets(
@@ -363,19 +368,11 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         tvStatus = findViewById(R.id.tvStatus)
         ivCamera = findViewById(R.id.ivCamera)
 
-        val btnForward = findViewById<Button>(R.id.btnForward)
-        val btnStop = findViewById<Button>(R.id.btnStop)
-        val btnLeft = findViewById<Button>(R.id.btnLeft)
-        val btnRight = findViewById<Button>(R.id.btnRight)
-        val btnBackward = findViewById<Button>(R.id.btnBackward)
-
-        // 绑定五个方向按钮的点击事件
-        btnForward.setOnClickListener { sendCommand("forward") }
-        btnStop.setOnClickListener { sendCommand("stop") }
-        btnLeft.setOnClickListener { sendCommand("left") }
-        btnRight.setOnClickListener { sendCommand("right") }
-        btnBackward.setOnClickListener { sendCommand("backward") }
-
+        // 方向控制全部交给左侧悬浮摇杆：拖动持续发方向指令，松手立即 stop
+        bindJoystick()
+        git add .
+        git commit -m "feat: 强制横屏并引入悬浮摇杆控制，修复Material3按钮挤压问题"
+        git push
         // LED 颜色按钮：红、绿、蓝、白、关
         findViewById<Button>(R.id.btnLedRed).setOnClickListener { sendLedColor("red") }
         findViewById<Button>(R.id.btnLedGreen).setOnClickListener { sendLedColor("green") }
@@ -414,9 +411,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED
                 startMotionControl()
             } else {
-                // 关闭体感后恢复自动旋转：SENSOR 跟随设备传感器自由横竖屏，
-                // 同时也能覆盖 AndroidManifest 里的 screenOrientation 属性
-                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
+                // 关闭体感后恢复横屏：SCREEN_ORIENTATION_LANDSCAPE 与 Manifest 里的设置一致，
+                // 不能再用 SENSOR，否则会重新允许竖屏
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
                 stopMotionControl()
             }
         }
@@ -1491,6 +1488,58 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     }
 
     /**
+     * 绑定横屏摇杆（竖屏布局里没有该控件，findViewById 返回 null 直接跳过）
+     *
+     * 摇杆库回调（onMove）给出角度和力度：
+     * 角度按逆时针 0~360 计算，右=0°、上=90°、左=180°、下=270°；
+     * 力度 0~100，松手时库会自动回中并回调一次力度 0。
+     *
+     * 这里把角度按 45° 扇区映射成四个方向，力度小于阈值视为原点附近抖动，按停止处理。
+     * 回调只负责更新“当前指令”，真正的重复发送交给 Handler 定时任务，避免摇杆 50ms 一次的回调刷爆后端。
+     */
+    private fun bindJoystick() {
+        val joystick = findViewById<JoystickView?>(R.id.joystick) ?: return
+        joystick.setOnMoveListener({ angle, strength ->
+            val command = when {
+                strength < 15 -> "stop"
+                angle in 45 until 135 -> "forward"
+                angle in 135 until 225 -> "left"
+                angle in 225 until 315 -> "backward"
+                else -> "right"
+            }
+            onJoystickMove(command)
+        })
+    }
+
+    /**
+     * 摇杆方向变化时的处理：
+     * 1. 回到原点/松手（command == "stop"）：立刻移除定时任务并发一次 stop；
+     * 2. 换了新方向：立刻发一次，然后启动 200ms 的循环任务持续发送；
+     * 3. 方向没变：什么都不做，等循环任务继续发。
+     */
+    private fun onJoystickMove(command: String) {
+        if (command == "stop") {
+            // 只有原本在动的时候才需要补发 stop，避免原点附近抖动时连发
+            if (joystickCommand == null) return
+            joystickCommand = null
+            lastJoystickSent = null
+            joystickHandler.removeCallbacks(joystickTask)
+            sendCommand("stop")
+            return
+        }
+
+        if (command == joystickCommand) return
+
+        joystickCommand = command
+        joystickHandler.removeCallbacks(joystickTask)
+        if (command != lastJoystickSent) {
+            lastJoystickSent = command
+            sendCommand(command)
+        }
+        joystickHandler.postDelayed(joystickTask, 200)
+    }
+
+    /**
      * 开启体感控制：注册加速度传感器监听
      * 先把 lastMotionCommand 清空，保证重新开启后第一帧无论算出什么指令都会发出去
      */
@@ -1597,6 +1646,15 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             isPlayingActions = false
             playbackHandler.removeCallbacksAndMessages(null)
         }
+
+        // 页面销毁时若摇杆还在按住拖动，停掉循环发送并补发一次 stop，
+        // 否则 Handler 会继续发指令、也会持有 Activity 引用
+        if (joystickCommand != null) {
+            joystickCommand = null
+            joystickHandler.removeCallbacks(joystickTask)
+            sendCommand("stop")
+        }
+        joystickHandler.removeCallbacksAndMessages(null)
 
         // 页面销毁时若还在录制动作，这里只需置位标志，无需额外清理：
         // recordAction() 是同步调用（不走 Handler 排队），新实例的 isActionRecording 字段默认就是 false，

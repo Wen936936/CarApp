@@ -1,1054 +1,1005 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 小车控制主界面布局（横屏）：深色科技风
-     结构：最外层竖向 LinearLayout = 固定顶栏 + 下方横向内容（左侧固定相机画面 + 右侧可滚动功能区）
-     注意：本文件所有控件 id 与 res/layout/activity_main.xml 完全一致，
-           这样 MainActivity.kt 里的 findViewById 不用改 -->
+     结构：最外层横向 LinearLayout = 左侧相机区（weight 4）+ 右侧功能区（weight 6）
+     左侧用 FrameLayout 叠放：底层摄像头画面，上层左下角悬浮摇杆
+     右侧用 ScrollView 承载所有功能卡片 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/rootLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
+    android:orientation="horizontal"
     android:background="@color/bg_primary">
 
-    <!-- ============ 固定顶栏：左侧应用名，右侧状态文本（横跨全宽，不随下方内容滚动） ============ -->
-    <LinearLayout
-        android:id="@+id/topBar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="@color/bg_card"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="10dp">
+    <!-- ============ 左侧：相机画面 + 左下角悬浮摇杆（占屏宽 40%） ============ -->
+    <FrameLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="4"
+        android:background="@color/bg_card">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="车控 App"
-            android:textColor="@color/color_primary"
-            android:textSize="18sp"
-            android:textStyle="bold" />
+        <!-- 摄像头画面：铺满整个左侧区域，上面再叠加摇杆 -->
+        <ImageView
+            android:id="@+id/ivCamera"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="matrix"
+            android:background="#2A2A2A"
+            android:contentDescription="小车摄像头画面" />
 
-        <!-- 状态提示文本，显示最近一次指令的发送结果/连接状态 -->
+        <!-- 状态提示文本：浮在画面左上角，显示最近一次指令的发送结果/连接状态 -->
         <TextView
             android:id="@+id/tvStatus"
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
+            android:layout_gravity="top|start"
+            android:layout_margin="12dp"
+            android:maxWidth="220dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:background="#80000000"
             android:text="等待操作"
             android:textColor="@color/text_secondary"
-            android:textSize="14sp"
-            android:gravity="end"
-            android:singleLine="true"
+            android:textSize="12sp"
+            android:maxLines="2"
             android:ellipsize="end" />
 
-    </LinearLayout>
+        <!-- 悬浮摇杆：固定在画面左下角，离屏幕边缘留 24dp 空隙 -->
+        <io.github.controlwear.virtual.joystick.android.JoystickView
+            android:id="@+id/joystick"
+            android:layout_width="150dp"
+            android:layout_height="150dp"
+            android:layout_gravity="bottom|start"
+            android:layout_margin="24dp"
+            app:JV_buttonColor="@color/color_primary"
+            app:JV_borderColor="@color/border_color"
+            app:JV_backgroundColor="@color/bg_card"
+            app:JV_borderWidth="2dp"
+            app:JV_buttonSizeRatio="30%"
+            app:JV_backgroundSizeRatio="90%"
+            app:JV_autoReCenterButton="true"
+            app:JV_fixedCenter="true"
+            app:JV_buttonStickToBorder="false" />
 
-    <!-- ============ 下方横向内容区：左侧固定相机画面 + 右侧可滚动功能区 ============ -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:orientation="horizontal">
+    </FrameLayout>
 
-        <!-- ============ 左侧固定区：铺满高度的相机画面 ============ -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="2"
-            android:layout_margin="8dp"
-            app:cardBackgroundColor="@color/bg_card"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="0dp"
-            app:strokeColor="@color/border_color"
-            app:strokeWidth="1dp">
+    <!-- ============ 右侧：所有功能卡片，整体可上下滚动（占屏宽 60%） ============ -->
+    <ScrollView
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="6"
+        android:fillViewport="true">
 
-            <FrameLayout
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@color/bg_primary"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp">
+
+            <!-- ============ 相机操作卡片 ============ -->
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
-                android:layout_height="match_parent">
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                app:cardBackgroundColor="@color/bg_card"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border_color"
+                app:strokeWidth="1dp">
 
-                <!-- 摄像头画面展示区域，横屏下占满左侧整块高度 -->
-                <ImageView
-                    android:id="@+id/ivCamera"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:scaleType="matrix"
-                    android:background="#2A2A2A"
-                    android:contentDescription="小车摄像头画面" />
-
-                <!-- 相机操作按钮浮在画面底部：放大、缩小、拍照、录像 -->
-                <!-- 用半透明底衬避免按钮压在画面上看不清 -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_gravity="bottom"
-                    android:orientation="horizontal"
-                    android:gravity="center"
-                    android:background="#80000000"
-                    android:padding="6dp">
+                    android:orientation="vertical"
+                    android:padding="12dp">
 
-                    <Button
-                        android:id="@+id/btnZoomIn"
-                        style="@style/Widget.CarApp.Button.Secondary"
-                        android:layout_width="0dp"
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:layout_marginEnd="4dp"
-                        android:text="放大" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
 
-                    <Button
-                        android:id="@+id/btnZoomOut"
-                        style="@style/Widget.CarApp.Button.Secondary"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:layout_marginEnd="4dp"
-                        android:text="缩小" />
+                        <View
+                            android:layout_width="3dp"
+                            android:layout_height="16dp"
+                            android:background="@color/color_primary"
+                            android:layout_marginEnd="6dp" />
 
-                    <Button
-                        android:id="@+id/btnSnap"
-                        style="@style/Widget.CarApp.Button.Secondary"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:layout_marginEnd="4dp"
-                        android:text="拍照" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="相机操作"
+                            android:textColor="@color/color_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
 
-                    <Button
-                        android:id="@+id/btnRecord"
-                        style="@style/Widget.CarApp.Button.Secondary"
-                        android:layout_width="0dp"
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="录像" />
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/btnZoomIn"
+                            style="@style/Widget.CarApp.Button.Secondary"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="4dp"
+                            android:text="放大" />
+
+                        <Button
+                            android:id="@+id/btnZoomOut"
+                            style="@style/Widget.CarApp.Button.Secondary"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="4dp"
+                            android:text="缩小" />
+
+                        <Button
+                            android:id="@+id/btnSnap"
+                            style="@style/Widget.CarApp.Button.Secondary"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="4dp"
+                            android:text="拍照" />
+
+                        <Button
+                            android:id="@+id/btnRecord"
+                            style="@style/Widget.CarApp.Button.Secondary"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="录像" />
+
+                    </LinearLayout>
 
                 </LinearLayout>
 
-            </FrameLayout>
+            </com.google.android.material.card.MaterialCardView>
 
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- ============ 右侧可滚动区：所有功能卡片从上到下排列 ============ -->
-        <ScrollView
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="3"
-            android:fillViewport="true">
-
-            <LinearLayout
+            <!-- ============ 底盘控制卡片（方向由左侧摇杆接管，这里只保留体感开关） ============ -->
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:background="@color/bg_primary"
-                android:paddingTop="8dp"
-                android:paddingBottom="8dp">
+                android:layout_margin="8dp"
+                app:cardBackgroundColor="@color/bg_card"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border_color"
+                app:strokeWidth="1dp">
 
-                <!-- ============ 控制卡片 ============ -->
-                <com.google.android.material.card.MaterialCardView
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_margin="8dp"
-                    app:cardBackgroundColor="@color/bg_card"
-                    app:cardCornerRadius="12dp"
-                    app:cardElevation="0dp"
-                    app:strokeColor="@color/border_color"
-                    app:strokeWidth="1dp">
+                    android:orientation="vertical"
+                    android:padding="12dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:gravity="center"
-                        android:padding="12dp">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_marginBottom="8dp">
-
-                            <View
-                                android:layout_width="3dp"
-                                android:layout_height="16dp"
-                                android:background="@color/color_primary"
-                                android:layout_marginEnd="6dp" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="控制"
-                                android:textColor="@color/color_primary"
-                                android:textSize="14sp"
-                                android:textStyle="bold" />
-
-                        </LinearLayout>
-
-                        <!-- 前进按钮，单独一行居中 -->
-                        <Button
-                            android:id="@+id/btnForward"
-                            android:layout_width="120dp"
-                            android:layout_height="wrap_content"
-                            android:text="前进"
-                            app:icon="@drawable/ic_arrow_upward"
-                            app:iconGravity="top"
-                            android:layout_marginBottom="16dp" />
-
-                        <!-- 左转、停止、右转按钮放在同一行 -->
-                        <LinearLayout
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center">
-
-                            <Button
-                                android:id="@+id/btnLeft"
-                                android:layout_width="100dp"
-                                android:layout_height="wrap_content"
-                                android:text="左转"
-                                app:icon="@drawable/ic_arrow_back"
-                                app:iconGravity="top"
-                                android:layout_marginEnd="16dp" />
-
-                            <Button
-                                android:id="@+id/btnStop"
-                                style="@style/Widget.CarApp.Button.Danger"
-                                android:layout_width="110dp"
-                                android:layout_height="wrap_content"
-                                android:text="停止"
-                                android:layout_marginEnd="16dp" />
-
-                            <Button
-                                android:id="@+id/btnRight"
-                                android:layout_width="100dp"
-                                android:layout_height="wrap_content"
-                                android:text="右转"
-                                app:icon="@drawable/ic_arrow_forward"
-                                app:iconGravity="top" />
-
-                        </LinearLayout>
-
-                        <!-- 后退按钮，单独一行居中，与前进按钮上下对称，形成十字形布局 -->
-                        <Button
-                            android:id="@+id/btnBackward"
-                            android:layout_width="120dp"
-                            android:layout_height="wrap_content"
-                            android:text="后退"
-                            app:icon="@drawable/ic_arrow_downward"
-                            app:iconGravity="top"
-                            android:layout_marginTop="16dp" />
-
-                        <!-- 体感控制开关：打开后用手机加速度传感器，倾斜手机控制小车方向 -->
-                        <Switch
-                            android:id="@+id/swMotionControl"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
-                            android:text="体感控制（倾斜手机）"
-                            android:textColor="@color/text_primary" />
-
-                    </LinearLayout>
-
-                </com.google.android.material.card.MaterialCardView>
-
-                <!-- ============ LED/喇叭卡片 ============ -->
-                <com.google.android.material.card.MaterialCardView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_margin="8dp"
-                    app:cardBackgroundColor="@color/bg_card"
-                    app:cardCornerRadius="12dp"
-                    app:cardElevation="0dp"
-                    app:strokeColor="@color/border_color"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="12dp">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_marginBottom="8dp">
-
-                            <View
-                                android:layout_width="3dp"
-                                android:layout_height="16dp"
-                                android:background="@color/color_primary"
-                                android:layout_marginEnd="6dp" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="灯光与喇叭"
-                                android:textColor="@color/color_primary"
-                                android:textSize="14sp"
-                                android:textStyle="bold" />
-
-                        </LinearLayout>
-
-                        <!-- LED 颜色按钮一排：红、绿、蓝、白、关 -->
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center"
-                            android:layout_marginBottom="12dp">
-
-                            <Button
-                                android:id="@+id/btnLedRed"
-                                style="@style/Widget.CarApp.Button.Secondary"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:layout_marginEnd="4dp"
-                                android:text="红" />
-
-                            <Button
-                                android:id="@+id/btnLedGreen"
-                                style="@style/Widget.CarApp.Button.Secondary"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:layout_marginEnd="4dp"
-                                android:text="绿" />
-
-                            <Button
-                                android:id="@+id/btnLedBlue"
-                                style="@style/Widget.CarApp.Button.Secondary"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:layout_marginEnd="4dp"
-                                android:text="蓝" />
-
-                            <Button
-                                android:id="@+id/btnLedWhite"
-                                style="@style/Widget.CarApp.Button.Secondary"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:layout_marginEnd="4dp"
-                                android:text="白" />
-
-                            <Button
-                                android:id="@+id/btnLedOff"
-                                style="@style/Widget.CarApp.Button.Secondary"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="关" />
-
-                        </LinearLayout>
-
-                        <!-- LED 模式按钮一排：常亮、流水灯、闪烁 -->
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center"
-                            android:layout_marginBottom="12dp">
-
-                            <Button
-                                android:id="@+id/btnLedModeSteady"
-                                style="@style/Widget.CarApp.Button.Secondary"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:layout_marginEnd="4dp"
-                                android:text="常亮" />
-
-                            <Button
-                                android:id="@+id/btnLedModeFlow"
-                                style="@style/Widget.CarApp.Button.Secondary"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:layout_marginEnd="4dp"
-                                android:text="流水灯" />
-
-                            <Button
-                                android:id="@+id/btnLedModeBlink"
-                                style="@style/Widget.CarApp.Button.Secondary"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="闪烁" />
-
-                        </LinearLayout>
-
-                        <!-- 喇叭按钮：单击在“响/停”两个状态间切换 -->
-                        <Button
-                            android:id="@+id/btnBuzzer"
-                            style="@style/Widget.CarApp.Button.Secondary"
-                            android:layout_width="120dp"
-                            android:layout_height="wrap_content"
-                            android:text="喇叭：响"
-                            android:layout_marginBottom="12dp" />
-
-                        <!-- 图像处理开关：打开后通知后端对摄像头画面做 YOLO/OpenCV 处理，关闭则恢复原始画面 -->
-                        <Switch
-                            android:id="@+id/swImageProcess"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="图像处理（YOLO/OpenCV）"
-                            android:textColor="@color/text_primary" />
-
-                    </LinearLayout>
-
-                </com.google.android.material.card.MaterialCardView>
-
-                <!-- ============ 机械臂控制卡片 ============ -->
-                <com.google.android.material.card.MaterialCardView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_margin="8dp"
-                    app:cardBackgroundColor="@color/bg_card"
-                    app:cardCornerRadius="12dp"
-                    app:cardElevation="0dp"
-                    app:strokeColor="@color/border_color"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="12dp">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_marginBottom="8dp">
-
-                            <View
-                                android:layout_width="3dp"
-                                android:layout_height="16dp"
-                                android:background="@color/color_primary"
-                                android:layout_marginEnd="6dp" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="机械臂控制"
-                                android:textColor="@color/color_primary"
-                                android:textSize="14sp"
-                                android:textStyle="bold" />
-
-                        </LinearLayout>
-
-                        <!-- 机械臂归位按钮：一键让机械臂回到预设初始姿态 -->
-                        <Button
-                            android:id="@+id/btnArmReset"
-                            style="@style/Widget.CarApp.Button.Secondary"
-                            android:layout_width="120dp"
-                            android:layout_height="wrap_content"
-                            android:text="机械臂归位"
-                            android:layout_marginBottom="12dp" />
-
-                        <!-- 6 个关节滑动条（p1~p5 与 base）：拖动中只更新右侧数值显示，松手后统一发送一次指令 -->
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_marginBottom="4dp">
-
-                            <TextView
-                                android:layout_width="56dp"
-                                android:layout_height="wrap_content"
-                                android:text="base"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="14sp" />
-
-                            <SeekBar
-                                android:id="@+id/seekBase"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:max="180"
-                                android:progress="90" />
-
-                            <TextView
-                                android:id="@+id/tvBaseValue"
-                                android:layout_width="48dp"
-                                android:layout_height="wrap_content"
-                                android:text="90"
-                                android:textColor="@color/text_primary"
-                                android:textSize="14sp"
-                                android:gravity="end" />
-
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_marginBottom="4dp">
-
-                            <TextView
-                                android:layout_width="56dp"
-                                android:layout_height="wrap_content"
-                                android:text="p1"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="14sp" />
-
-                            <SeekBar
-                                android:id="@+id/seekP1"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:max="180"
-                                android:progress="90" />
-
-                            <TextView
-                                android:id="@+id/tvP1Value"
-                                android:layout_width="48dp"
-                                android:layout_height="wrap_content"
-                                android:text="90"
-                                android:textColor="@color/text_primary"
-                                android:textSize="14sp"
-                                android:gravity="end" />
-
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_marginBottom="4dp">
-
-                            <TextView
-                                android:layout_width="56dp"
-                                android:layout_height="wrap_content"
-                                android:text="p2"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="14sp" />
-
-                            <SeekBar
-                                android:id="@+id/seekP2"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:max="180"
-                                android:progress="90" />
-
-                            <TextView
-                                android:id="@+id/tvP2Value"
-                                android:layout_width="48dp"
-                                android:layout_height="wrap_content"
-                                android:text="90"
-                                android:textColor="@color/text_primary"
-                                android:textSize="14sp"
-                                android:gravity="end" />
-
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_marginBottom="4dp">
-
-                            <TextView
-                                android:layout_width="56dp"
-                                android:layout_height="wrap_content"
-                                android:text="p3"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="14sp" />
-
-                            <SeekBar
-                                android:id="@+id/seekP3"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:max="180"
-                                android:progress="90" />
-
-                            <TextView
-                                android:id="@+id/tvP3Value"
-                                android:layout_width="48dp"
-                                android:layout_height="wrap_content"
-                                android:text="90"
-                                android:textColor="@color/text_primary"
-                                android:textSize="14sp"
-                                android:gravity="end" />
-
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_marginBottom="4dp">
-
-                            <TextView
-                                android:layout_width="56dp"
-                                android:layout_height="wrap_content"
-                                android:text="p4"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="14sp" />
-
-                            <SeekBar
-                                android:id="@+id/seekP4"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:max="180"
-                                android:progress="90" />
-
-                            <TextView
-                                android:id="@+id/tvP4Value"
-                                android:layout_width="48dp"
-                                android:layout_height="wrap_content"
-                                android:text="90"
-                                android:textColor="@color/text_primary"
-                                android:textSize="14sp"
-                                android:gravity="end" />
-
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical">
-
-                            <TextView
-                                android:layout_width="56dp"
-                                android:layout_height="wrap_content"
-                                android:text="p5"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="14sp" />
-
-                            <SeekBar
-                                android:id="@+id/seekP5"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:max="180"
-                                android:progress="90" />
-
-                            <TextView
-                                android:id="@+id/tvP5Value"
-                                android:layout_width="48dp"
-                                android:layout_height="wrap_content"
-                                android:text="90"
-                                android:textColor="@color/text_primary"
-                                android:textSize="14sp"
-                                android:gravity="end" />
-
-                        </LinearLayout>
-
-                    </LinearLayout>
-
-                </com.google.android.material.card.MaterialCardView>
-
-                <!-- ============ AI 对话卡片 ============ -->
-                <com.google.android.material.card.MaterialCardView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_margin="8dp"
-                    app:cardBackgroundColor="@color/bg_card"
-                    app:cardCornerRadius="12dp"
-                    app:cardElevation="0dp"
-                    app:strokeColor="@color/border_color"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="12dp">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_marginBottom="8dp">
-
-                            <View
-                                android:layout_width="3dp"
-                                android:layout_height="16dp"
-                                android:background="@color/color_primary"
-                                android:layout_marginEnd="6dp" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="AI 对话"
-                                android:textColor="@color/color_primary"
-                                android:textSize="14sp"
-                                android:textStyle="bold" />
-
-                        </LinearLayout>
-
-                        <!-- 聊天记录显示区：固定高度，内容超出后可上下滚动
-                             （滚动能力由代码设置 ScrollingMovementMethod 开启） -->
-                        <TextView
-                            android:id="@+id/tvChatLog"
-                            android:layout_width="match_parent"
-                            android:layout_height="180dp"
-                            android:background="@color/bg_primary"
-                            android:padding="8dp"
-                            android:textColor="@color/text_primary"
-                            android:textSize="14sp"
-                            android:gravity="top|start"
-                            android:text=""
-                            android:scrollbars="vertical"
-                            android:layout_marginBottom="8dp" />
-
-                        <!-- 输入框与发送按钮放在同一行，输入框占据剩余宽度 -->
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical">
-
-                            <EditText
-                                android:id="@+id/etChatInput"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:background="@drawable/bg_edittext_chat"
-                                android:hint="输入内容"
-                                android:textColor="@color/text_primary"
-                                android:textColorHint="@color/text_secondary"
-                                android:inputType="text"
-                                android:maxLines="1"
-                                android:layout_marginEnd="8dp" />
-
-                            <Button
-                                android:id="@+id/btnSendChat"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="发送" />
-
-                            <!-- 拍照发AI：抓取当前摄像头画面并连同文字一起发给 AI -->
-                            <Button
-                                android:id="@+id/btnSnapAndChat"
-                                style="@style/Widget.CarApp.Button.Secondary"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="8dp"
-                                android:text="拍照发AI" />
-
-                        </LinearLayout>
-
-                    </LinearLayout>
-
-                </com.google.android.material.card.MaterialCardView>
-
-                <!-- ============ SLAM 地图卡片 ============ -->
-                <com.google.android.material.card.MaterialCardView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_margin="8dp"
-                    app:cardBackgroundColor="@color/bg_card"
-                    app:cardCornerRadius="12dp"
-                    app:cardElevation="0dp"
-                    app:strokeColor="@color/border_color"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="12dp">
-
-                        <!-- SLAM 地图区域标题，同时用于展示地图加载状态文案 -->
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_marginBottom="8dp">
-
-                            <View
-                                android:layout_width="3dp"
-                                android:layout_height="16dp"
-                                android:background="@color/color_primary"
-                                android:layout_marginEnd="6dp" />
-
-                            <TextView
-                                android:id="@+id/tvMapTitle"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="SLAM 地图（占位）"
-                                android:textColor="@color/color_primary"
-                                android:textSize="14sp"
-                                android:textStyle="bold" />
-
-                        </LinearLayout>
-
-                        <!-- 地图显示区：由代码用 Canvas 画格子图，点击可发送导航目标点 -->
-                        <!-- scaleType 用 fitXY 是为了让 8x8 等比的地图铺满区域，配合 handleMapTouch 里的按比例换算 -->
-                        <!-- 外层包一层青色细描边容器，内部地图背景仍保持白色，与位图底色一致 -->
-                        <FrameLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="240dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <View
+                            android:layout_width="3dp"
+                            android:layout_height="16dp"
                             android:background="@color/color_primary"
-                            android:padding="1dp"
-                            android:layout_marginBottom="8dp">
+                            android:layout_marginEnd="6dp" />
 
-                            <ImageView
-                                android:id="@+id/ivMap"
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:scaleType="fitXY"
-                                android:background="#FFFFFF"
-                                android:contentDescription="SLAM 地图" />
-
-                        </FrameLayout>
-
-                        <!-- 地图状态提示：显示加载结果与点击导航的发送结果 -->
                         <TextView
-                            android:id="@+id/tvMapStatus"
-                            android:layout_width="match_parent"
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="地图未加载"
+                            android:text="底盘控制"
+                            android:textColor="@color/color_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
+
+                    <Switch
+                        android:id="@+id/swMotionControl"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="体感控制（倾斜手机）"
+                        android:textColor="@color/text_primary" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- ============ LED/喇叭卡片 ============ -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                app:cardBackgroundColor="@color/bg_card"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border_color"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <View
+                            android:layout_width="3dp"
+                            android:layout_height="16dp"
+                            android:background="@color/color_primary"
+                            android:layout_marginEnd="6dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="灯光与喇叭"
+                            android:textColor="@color/color_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
+
+                    <!-- LED 颜色按钮一排：红、绿、蓝、白、关 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="8dp">
+
+                        <Button
+                            android:id="@+id/btnLedRed"
+                            style="@style/Widget.CarApp.Button.Secondary"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="4dp"
+                            android:text="红" />
+
+                        <Button
+                            android:id="@+id/btnLedGreen"
+                            style="@style/Widget.CarApp.Button.Secondary"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="4dp"
+                            android:text="绿" />
+
+                        <Button
+                            android:id="@+id/btnLedBlue"
+                            style="@style/Widget.CarApp.Button.Secondary"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="4dp"
+                            android:text="蓝" />
+
+                        <Button
+                            android:id="@+id/btnLedWhite"
+                            style="@style/Widget.CarApp.Button.Secondary"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="4dp"
+                            android:text="白" />
+
+                        <Button
+                            android:id="@+id/btnLedOff"
+                            style="@style/Widget.CarApp.Button.Secondary"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="关" />
+
+                    </LinearLayout>
+
+                    <!-- LED 模式按钮一排：常亮、流水灯、闪烁 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="8dp">
+
+                        <Button
+                            android:id="@+id/btnLedModeSteady"
+                            style="@style/Widget.CarApp.Button.Secondary"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="4dp"
+                            android:text="常亮" />
+
+                        <Button
+                            android:id="@+id/btnLedModeFlow"
+                            style="@style/Widget.CarApp.Button.Secondary"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="4dp"
+                            android:text="流水灯" />
+
+                        <Button
+                            android:id="@+id/btnLedModeBlink"
+                            style="@style/Widget.CarApp.Button.Secondary"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="闪烁" />
+
+                    </LinearLayout>
+
+                    <!-- 喇叭按钮：单击在“响/停”两个状态间切换 -->
+                    <Button
+                        android:id="@+id/btnBuzzer"
+                        style="@style/Widget.CarApp.Button.Secondary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_horizontal"
+                        android:layout_marginBottom="12dp"
+                        android:paddingStart="24dp"
+                        android:paddingEnd="24dp"
+                        android:text="喇叭：响" />
+
+                    <!-- 图像处理开关：打开后通知后端对摄像头画面做 YOLO/OpenCV 处理，关闭则恢复原始画面 -->
+                    <Switch
+                        android:id="@+id/swImageProcess"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="图像处理（YOLO/OpenCV）"
+                        android:textColor="@color/text_primary" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- ============ 机械臂控制卡片 ============ -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                app:cardBackgroundColor="@color/bg_card"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border_color"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <View
+                            android:layout_width="3dp"
+                            android:layout_height="16dp"
+                            android:background="@color/color_primary"
+                            android:layout_marginEnd="6dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="机械臂控制"
+                            android:textColor="@color/color_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
+
+                    <Button
+                        android:id="@+id/btnArmReset"
+                        style="@style/Widget.CarApp.Button.Secondary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_horizontal"
+                        android:layout_marginBottom="12dp"
+                        android:paddingStart="24dp"
+                        android:paddingEnd="24dp"
+                        android:text="机械臂归位" />
+
+                    <!-- 6 个关节滑动条（base 与 p1~p5）：拖动中只更新右侧数值显示，松手后统一发送一次指令 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="4dp">
+
+                        <TextView
+                            android:layout_width="56dp"
+                            android:layout_height="wrap_content"
+                            android:text="base"
                             android:textColor="@color/text_secondary"
                             android:textSize="14sp" />
 
-                    </LinearLayout>
-
-                </com.google.android.material.card.MaterialCardView>
-
-                <!-- ============ 多点巡逻卡片 ============ -->
-                <com.google.android.material.card.MaterialCardView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_margin="8dp"
-                    app:cardBackgroundColor="@color/bg_card"
-                    app:cardCornerRadius="12dp"
-                    app:cardElevation="0dp"
-                    app:strokeColor="@color/border_color"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="12dp">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
+                        <SeekBar
+                            android:id="@+id/seekBase"
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_marginBottom="8dp">
+                            android:layout_weight="1"
+                            android:max="180"
+                            android:progress="90" />
 
-                            <View
-                                android:layout_width="3dp"
-                                android:layout_height="16dp"
-                                android:background="@color/color_primary"
-                                android:layout_marginEnd="6dp" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="多点巡逻"
-                                android:textColor="@color/color_primary"
-                                android:textSize="14sp"
-                                android:textStyle="bold" />
-
-                        </LinearLayout>
-
-                        <!-- 添加巡逻点按钮一排：A、B、C 三个点，取地图上最近一次点击的坐标 -->
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center"
-                            android:layout_marginBottom="8dp">
-
-                            <Button
-                                android:id="@+id/btnAddPointA"
-                                style="@style/Widget.CarApp.Button.Secondary"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:layout_marginEnd="4dp"
-                                android:text="添加A点" />
-
-                            <Button
-                                android:id="@+id/btnAddPointB"
-                                style="@style/Widget.CarApp.Button.Secondary"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:layout_marginEnd="4dp"
-                                android:text="添加B点" />
-
-                            <Button
-                                android:id="@+id/btnAddPointC"
-                                style="@style/Widget.CarApp.Button.Secondary"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="添加C点" />
-
-                        </LinearLayout>
-
-                        <!-- 巡逻状态提示：显示已添加的 A/B/C 点坐标，巡逻中显示当前前往的目标点 -->
                         <TextView
-                            android:id="@+id/tvPatrolLog"
-                            android:layout_width="match_parent"
+                            android:id="@+id/tvBaseValue"
+                            android:layout_width="48dp"
                             android:layout_height="wrap_content"
-                            android:text="A点:未设置  B点:未设置  C点:未设置"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="14sp"
-                            android:layout_marginBottom="8dp" />
-
-                        <!-- 开始巡逻、停止巡逻按钮 -->
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center">
-
-                            <Button
-                                android:id="@+id/btnStartPatrol"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:layout_marginEnd="4dp"
-                                android:text="开始巡逻" />
-
-                            <Button
-                                android:id="@+id/btnStopPatrol"
-                                style="@style/Widget.CarApp.Button.Danger"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="停止巡逻" />
-
-                        </LinearLayout>
-
-                    </LinearLayout>
-
-                </com.google.android.material.card.MaterialCardView>
-
-                <!-- ============ 动作录制卡片 ============ -->
-                <com.google.android.material.card.MaterialCardView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_margin="8dp"
-                    app:cardBackgroundColor="@color/bg_card"
-                    app:cardCornerRadius="12dp"
-                    app:cardElevation="0dp"
-                    app:strokeColor="@color/border_color"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="12dp">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_marginBottom="8dp">
-
-                            <View
-                                android:layout_width="3dp"
-                                android:layout_height="16dp"
-                                android:background="@color/color_primary"
-                                android:layout_marginEnd="6dp" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="动作录制"
-                                android:textColor="@color/color_primary"
-                                android:textSize="14sp"
-                                android:textStyle="bold" />
-
-                        </LinearLayout>
-
-                        <!-- 开始录制、停止录制、回放按钮一排 -->
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center"
-                            android:layout_marginBottom="8dp">
-
-                            <Button
-                                android:id="@+id/btnStartRecord"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:layout_marginEnd="4dp"
-                                android:text="开始录制" />
-
-                            <Button
-                                android:id="@+id/btnStopRecord"
-                                style="@style/Widget.CarApp.Button.Danger"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:layout_marginEnd="4dp"
-                                android:text="停止录制" />
-
-                            <Button
-                                android:id="@+id/btnPlayRecord"
-                                style="@style/Widget.CarApp.Button.Secondary"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="回放" />
-
-                        </LinearLayout>
-
-                        <!-- 录制动作列表显示区：固定高度，内容超出后可滚动查看 -->
-                        <TextView
-                            android:id="@+id/tvRecordLog"
-                            android:layout_width="match_parent"
-                            android:layout_height="140dp"
-                            android:background="@color/bg_primary"
-                            android:padding="8dp"
+                            android:text="90"
                             android:textColor="@color/text_primary"
                             android:textSize="14sp"
-                            android:gravity="top|start"
-                            android:text="尚未录制"
-                            android:scrollbars="vertical" />
+                            android:gravity="end" />
 
                     </LinearLayout>
 
-                </com.google.android.material.card.MaterialCardView>
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="4dp">
 
-                <!-- 设置按钮：点击弹出对话框，可修改后端 IP -->
-                <Button
-                    android:id="@+id/btnSettings"
-                    style="@style/Widget.CarApp.Button.Secondary"
-                    android:layout_width="140dp"
+                        <TextView
+                            android:layout_width="56dp"
+                            android:layout_height="wrap_content"
+                            android:text="p1"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="14sp" />
+
+                        <SeekBar
+                            android:id="@+id/seekP1"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:max="180"
+                            android:progress="90" />
+
+                        <TextView
+                            android:id="@+id/tvP1Value"
+                            android:layout_width="48dp"
+                            android:layout_height="wrap_content"
+                            android:text="90"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:gravity="end" />
+
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="4dp">
+
+                        <TextView
+                            android:layout_width="56dp"
+                            android:layout_height="wrap_content"
+                            android:text="p2"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="14sp" />
+
+                        <SeekBar
+                            android:id="@+id/seekP2"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:max="180"
+                            android:progress="90" />
+
+                        <TextView
+                            android:id="@+id/tvP2Value"
+                            android:layout_width="48dp"
+                            android:layout_height="wrap_content"
+                            android:text="90"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:gravity="end" />
+
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="4dp">
+
+                        <TextView
+                            android:layout_width="56dp"
+                            android:layout_height="wrap_content"
+                            android:text="p3"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="14sp" />
+
+                        <SeekBar
+                            android:id="@+id/seekP3"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:max="180"
+                            android:progress="90" />
+
+                        <TextView
+                            android:id="@+id/tvP3Value"
+                            android:layout_width="48dp"
+                            android:layout_height="wrap_content"
+                            android:text="90"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:gravity="end" />
+
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="4dp">
+
+                        <TextView
+                            android:layout_width="56dp"
+                            android:layout_height="wrap_content"
+                            android:text="p4"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="14sp" />
+
+                        <SeekBar
+                            android:id="@+id/seekP4"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:max="180"
+                            android:progress="90" />
+
+                        <TextView
+                            android:id="@+id/tvP4Value"
+                            android:layout_width="48dp"
+                            android:layout_height="wrap_content"
+                            android:text="90"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:gravity="end" />
+
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="56dp"
+                            android:layout_height="wrap_content"
+                            android:text="p5"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="14sp" />
+
+                        <SeekBar
+                            android:id="@+id/seekP5"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:max="180"
+                            android:progress="90" />
+
+                        <TextView
+                            android:id="@+id/tvP5Value"
+                            android:layout_width="48dp"
+                            android:layout_height="wrap_content"
+                            android:text="90"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:gravity="end" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- ============ AI 对话卡片 ============ -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                app:cardBackgroundColor="@color/bg_card"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border_color"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_gravity="center"
-                    android:layout_margin="8dp"
-                    android:text="设置" />
+                    android:orientation="vertical"
+                    android:padding="12dp">
 
-            </LinearLayout>
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
 
-        </ScrollView>
+                        <View
+                            android:layout_width="3dp"
+                            android:layout_height="16dp"
+                            android:background="@color/color_primary"
+                            android:layout_marginEnd="6dp" />
 
-    </LinearLayout>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="AI 对话"
+                            android:textColor="@color/color_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
+
+                    <!-- 聊天记录显示区：固定高度，内容超出后可上下滚动 -->
+                    <TextView
+                        android:id="@+id/tvChatLog"
+                        android:layout_width="match_parent"
+                        android:layout_height="180dp"
+                        android:layout_marginBottom="8dp"
+                        android:background="@color/bg_primary"
+                        android:padding="8dp"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp"
+                        android:gravity="top|start"
+                        android:text=""
+                        android:scrollbars="vertical" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <EditText
+                            android:id="@+id/etChatInput"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="8dp"
+                            android:background="@drawable/bg_edittext_chat"
+                            android:hint="输入内容"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/text_secondary"
+                            android:inputType="text"
+                            android:maxLines="1" />
+
+                        <Button
+                            android:id="@+id/btnSendChat"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="发送" />
+
+                        <Button
+                            android:id="@+id/btnSnapAndChat"
+                            style="@style/Widget.CarApp.Button.Secondary"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:text="拍照发AI" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- ============ SLAM 地图卡片 ============ -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                app:cardBackgroundColor="@color/bg_card"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border_color"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <View
+                            android:layout_width="3dp"
+                            android:layout_height="16dp"
+                            android:background="@color/color_primary"
+                            android:layout_marginEnd="6dp" />
+
+                        <TextView
+                            android:id="@+id/tvMapTitle"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="SLAM 地图（占位）"
+                            android:textColor="@color/color_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
+
+                    <!-- 地图显示区：由代码用 Canvas 画格子图，点击可发送导航目标点 -->
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="240dp"
+                        android:layout_marginBottom="8dp"
+                        android:background="@color/color_primary"
+                        android:padding="1dp">
+
+                        <ImageView
+                            android:id="@+id/ivMap"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:scaleType="fitXY"
+                            android:background="#FFFFFF"
+                            android:contentDescription="SLAM 地图" />
+
+                    </FrameLayout>
+
+                    <TextView
+                        android:id="@+id/tvMapStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="地图未加载"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- ============ 多点巡逻卡片 ============ -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                app:cardBackgroundColor="@color/bg_card"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border_color"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <View
+                            android:layout_width="3dp"
+                            android:layout_height="16dp"
+                            android:background="@color/color_primary"
+                            android:layout_marginEnd="6dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="多点巡逻"
+                            android:textColor="@color/color_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="8dp">
+
+                        <Button
+                            android:id="@+id/btnAddPointA"
+                            style="@style/Widget.CarApp.Button.Secondary"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="4dp"
+                            android:text="添加A点" />
+
+                        <Button
+                            android:id="@+id/btnAddPointB"
+                            style="@style/Widget.CarApp.Button.Secondary"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="4dp"
+                            android:text="添加B点" />
+
+                        <Button
+                            android:id="@+id/btnAddPointC"
+                            style="@style/Widget.CarApp.Button.Secondary"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="添加C点" />
+
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tvPatrolLog"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:text="A点:未设置  B点:未设置  C点:未设置"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/btnStartPatrol"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="4dp"
+                            android:text="开始巡逻" />
+
+                        <Button
+                            android:id="@+id/btnStopPatrol"
+                            style="@style/Widget.CarApp.Button.Danger"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="停止巡逻" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- ============ 动作录制卡片 ============ -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                app:cardBackgroundColor="@color/bg_card"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border_color"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <View
+                            android:layout_width="3dp"
+                            android:layout_height="16dp"
+                            android:background="@color/color_primary"
+                            android:layout_marginEnd="6dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="动作录制"
+                            android:textColor="@color/color_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="8dp">
+
+                        <Button
+                            android:id="@+id/btnStartRecord"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="4dp"
+                            android:text="开始录制" />
+
+                        <Button
+                            android:id="@+id/btnStopRecord"
+                            style="@style/Widget.CarApp.Button.Danger"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="4dp"
+                            android:text="停止录制" />
+
+                        <Button
+                            android:id="@+id/btnPlayRecord"
+                            style="@style/Widget.CarApp.Button.Secondary"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="回放" />
+
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tvRecordLog"
+                        android:layout_width="match_parent"
+                        android:layout_height="140dp"
+                        android:background="@color/bg_primary"
+                        android:padding="8dp"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp"
+                        android:gravity="top|start"
+                        android:text="尚未录制"
+                        android:scrollbars="vertical" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 设置按钮：点击弹出对话框，可修改后端 IP -->
+            <Button
+                android:id="@+id/btnSettings"
+                style="@style/Widget.CarApp.Button.Secondary"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_margin="8dp"
+                android:paddingStart="40dp"
+                android:paddingEnd="40dp"
+                android:text="设置" />
+
+        </LinearLayout>
+
+    </ScrollView>
 
 </LinearLayout>

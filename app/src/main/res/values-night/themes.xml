@@ -7,5 +7,77 @@
         <item name="android:textColorPrimary">@color/text_primary</item>
         <item name="android:textColorSecondary">@color/text_secondary</item>
         <item name="materialButtonStyle">@style/Widget.CarApp.Button.Primary</item>
+        <!-- 夜间模式下系统会再套一层 Material3 的按钮默认尺寸，
+             这里在主题层把全局最小宽度/高度清零，作为样式覆盖之外的兜底 -->
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+    </style>
+
+    <style name="Theme.CarApp" parent="Base.Theme.CarApp" />
+
+    <!-- 夜间模式显式重定义三种按钮样式：
+         MaterialButton 自带 minWidth=88dp 硬下限，横屏一排 4~5 个按钮时会把每个按钮挤成细长条，
+         所以这里把 minWidth、minHeight 全部清零，并把四向内缩（inset）归零，
+         让按钮尺寸完全由 layout_weight + padding 决定 -->
+    <style name="Widget.CarApp.Button.Primary" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/color_primary</item>
+        <item name="android:textColor">@color/text_on_accent</item>
+        <item name="iconTint">@color/text_on_accent</item>
+        <item name="cornerRadius">8dp</item>
+        <item name="elevation">0dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:paddingStart">8dp</item>
+        <item name="android:paddingLeft">8dp</item>
+        <item name="android:paddingRight">8dp</item>
+        <item name="android:paddingEnd">8dp</item>
+        <item name="android:paddingTop">10dp</item>
+        <item name="android:paddingBottom">10dp</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetRight">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:maxLines">1</item>
+    </style>
+
+    <style name="Widget.CarApp.Button.Secondary" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="strokeColor">@color/color_primary</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="android:textColor">@color/color_primary</item>
+        <item name="iconTint">@color/color_primary</item>
+        <item name="cornerRadius">8dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:paddingStart">6dp</item>
+        <item name="android:paddingLeft">6dp</item>
+        <item name="android:paddingRight">6dp</item>
+        <item name="android:paddingEnd">6dp</item>
+        <item name="android:paddingTop">10dp</item>
+        <item name="android:paddingBottom">10dp</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetRight">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:maxLines">1</item>
+    </style>
+
+    <style name="Widget.CarApp.Button.Danger" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/color_danger</item>
+        <item name="android:textColor">@color/text_on_accent</item>
+        <item name="cornerRadius">8dp</item>
+        <item name="elevation">0dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:paddingStart">6dp</item>
+        <item name="android:paddingLeft">6dp</item>
+        <item name="android:paddingRight">6dp</item>
+        <item name="android:paddingEnd">6dp</item>
+        <item name="android:paddingTop">10dp</item>
+        <item name="android:paddingBottom">10dp</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetRight">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:maxLines">1</item>
     </style>
 </resources>
