@@ -58,7 +58,11 @@
       "Bash(unzip -o -q m.aar)",
       "Bash(echo \"exit=$?\")",
       "Bash(curl -sS -L --ssl-no-revoke -m 30 \"https://repo.huaweicloud.com/repository/maven/io/github/controlwear/virtualjoystick/\")",
-      "Bash(./gradlew assembleDebug --console=plain)"
+      "Bash(./gradlew assembleDebug --console=plain)",
+      "Read(//c/Users/83588/.gradle/caches/modules-2/files-2.1/io.github.controlwear/virtualjoystick/**)",
+      "Read(//c/Users/83588/.gradle/caches/modules-2/files-2.1/io.github.controlwear/**)",
+      "Bash(git diff *)",
+      "Bash(./gradlew :app:compileDebugKotlin --offline)"
     ]
   }
 }

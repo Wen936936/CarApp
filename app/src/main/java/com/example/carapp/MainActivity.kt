@@ -154,25 +154,30 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     // 上一次实际发出的体感指令，用于防抖：算出的指令和它相同就不重复发请求
     private var lastMotionCommand: String? = null
 
-    // ============ 横屏摇杆控制相关 ============
+    // ============ 横屏摇杆：全向模拟量控制 ============
 
-    // 摇杆“持续发送”的 Handler 与任务：拖动期间按固定间隔重复发送当前方向指令，
-    // 和 patrolHandler / recordHandler 一样的做法，避免摇杆每 50ms 回调一次就直接刷爆后端
+    // 摇杆心跳的发送间隔（毫秒）。100ms 即 20Hz，后端按固定频率刷新底盘速度
+    private val joystickHeartbeatMs = 100L
+
+    // 摇杆“心跳”的 Handler 与任务：只要手指按在摇杆上，就每 100ms 把当前 x/y 发一次，
+    // 后端靠这个持续的心跳维持底盘速度，松手后心跳一停，底盘由 App 显式发的 (0,0) 急停
     private val joystickHandler = Handler(Looper.getMainLooper())
 
-    // 当前摇杆对应的指令，松手后置为 null
-    private var joystickCommand: String? = null
+    // 摇杆当前坐标，范围 -100~100：
+    // x 为横向分量，右正左负；y 为纵向分量，上正下负（即上=前进、下=后退）
+    private var joystickX = 0
+    private var joystickY = 0
 
-    // 上一次真正发出去的摇杆指令，用于避免同方向重复发请求
-    private var lastJoystickSent: String? = null
+    // 心跳是否在运行中，等价于“手指是否按在摇杆上”
+    private var isJoystickActive = false
 
-    // 摇杆定时发送任务：只要 joystickCommand 还有值，就发一次并排下一次
+    // 心跳任务：发送当前坐标后把自己再排下一次，形成 100ms 的循环
     private val joystickTask = object : Runnable {
         override fun run() {
-            val command = joystickCommand ?: return
-            if (command == "stop") return
-            sendCommand(command)
-            joystickHandler.postDelayed(this, 200)
+            // 松手时已经把任务移除了，这里再判一次标志位做兜底，避免停不下来
+            if (!isJoystickActive) return
+            sendMotion(joystickX, joystickY)
+            joystickHandler.postDelayed(this, joystickHeartbeatMs)
         }
     }
 
@@ -368,11 +373,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         tvStatus = findViewById(R.id.tvStatus)
         ivCamera = findViewById(R.id.ivCamera)
 
-        // 方向控制全部交给左侧悬浮摇杆：拖动持续发方向指令，松手立即 stop
+        // 方向控制全部交给左侧悬浮摇杆：按住拖动期间按 20Hz 发 x/y 模拟量，松手立即发 (0,0) 急停
         bindJoystick()
-        git add .
-        git commit -m "feat: 强制横屏并引入悬浮摇杆控制，修复Material3按钮挤压问题"
-        git push
         // LED 颜色按钮：红、绿、蓝、白、关
         findViewById<Button>(R.id.btnLedRed).setOnClickListener { sendLedColor("red") }
         findViewById<Button>(R.id.btnLedGreen).setOnClickListener { sendLedColor("green") }
@@ -1488,55 +1490,100 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     }
 
     /**
-     * 绑定横屏摇杆（竖屏布局里没有该控件，findViewById 返回 null 直接跳过）
+     * 绑定左侧悬浮摇杆，做全向模拟量控制
      *
-     * 摇杆库回调（onMove）给出角度和力度：
+     * 摇杆库回调（onMove）给出的是角度和力度：
      * 角度按逆时针 0~360 计算，右=0°、上=90°、左=180°、下=270°；
      * 力度 0~100，松手时库会自动回中并回调一次力度 0。
      *
-     * 这里把角度按 45° 扇区映射成四个方向，力度小于阈值视为原点附近抖动，按停止处理。
-     * 回调只负责更新“当前指令”，真正的重复发送交给 Handler 定时任务，避免摇杆 50ms 一次的回调刷爆后端。
+     * 这里把极坐标（角度+力度）换算成直角坐标（x/y），两者都是 -100~100。
+     * 回调只负责更新当前坐标，真正的发送交给 100ms 的心跳任务，
+     * 因为库默认每 50ms 回调一次，直接发会把后端刷爆。
      */
     private fun bindJoystick() {
         val joystick = findViewById<JoystickView?>(R.id.joystick) ?: return
         joystick.setOnMoveListener({ angle, strength ->
-            val command = when {
-                strength < 15 -> "stop"
-                angle in 45 until 135 -> "forward"
-                angle in 135 until 225 -> "left"
-                angle in 225 until 315 -> "backward"
-                else -> "right"
-            }
-            onJoystickMove(command)
+            // 极坐标转直角坐标，约定：右为 x 正方向，上（前进）为 y 正方向
+            // 摇杆库的角度本身就是数学约定：右=0°、上=90°、左=180°、下=270°，
+            // 所以 cos 直接得 x、sin 直接得 y，不需要再翻转符号
+            val rad = Math.toRadians(angle.toDouble())
+            val x = (strength * Math.cos(rad)).toInt().coerceIn(-100, 100)
+            val y = (strength * Math.sin(rad)).toInt().coerceIn(-100, 100)
+            onJoystickMove(x, y)
         })
     }
 
     /**
-     * 摇杆方向变化时的处理：
-     * 1. 回到原点/松手（command == "stop"）：立刻移除定时任务并发一次 stop；
-     * 2. 换了新方向：立刻发一次，然后启动 200ms 的循环任务持续发送；
-     * 3. 方向没变：什么都不做，等循环任务继续发。
+     * 摇杆坐标变化时的处理：
+     * 1. 回到原点（x/y 都为 0）：判定为松手，立刻停掉心跳并补发一次 (0,0) 让底盘急停；
+     * 2. 有位移且心跳没在跑：启动 100ms 心跳，并马上发一次，让小车没有任何延迟地响应；
+     * 3. 心跳已经在跑：只更新坐标，由下一次心跳把新坐标带出去。
+     *
+     * 注意力度很小时 (0,0) 和轻微位移都可能出现，这里用“是否已有位移”而不是力度阈值判断，
+     * 避免手指按住不动时被误判成松手。
      */
-    private fun onJoystickMove(command: String) {
-        if (command == "stop") {
-            // 只有原本在动的时候才需要补发 stop，避免原点附近抖动时连发
-            if (joystickCommand == null) return
-            joystickCommand = null
-            lastJoystickSent = null
+    private fun onJoystickMove(x: Int, y: Int) {
+        joystickX = x
+        joystickY = y
+
+        if (x == 0 && y == 0) {
+            // 已经在停止状态就什么都不做，避免原点抖动时重复发 (0,0)
+            if (!isJoystickActive) return
+            isJoystickActive = false
             joystickHandler.removeCallbacks(joystickTask)
-            sendCommand("stop")
+            sendMotion(0, 0)
             return
         }
 
-        if (command == joystickCommand) return
-
-        joystickCommand = command
-        joystickHandler.removeCallbacks(joystickTask)
-        if (command != lastJoystickSent) {
-            lastJoystickSent = command
-            sendCommand(command)
+        // 心跳没在跑说明这是“刚按下/刚拖动”的第一帧，立刻发一次再开始循环
+        if (!isJoystickActive) {
+            isJoystickActive = true
+            sendMotion(x, y)
+            joystickHandler.removeCallbacks(joystickTask)
+            joystickHandler.postDelayed(joystickTask, joystickHeartbeatMs)
         }
-        joystickHandler.postDelayed(joystickTask, 200)
+    }
+
+    /**
+     * 发送全向速度指令：POST /car/motion?x=xxx&y=yyy
+     * x、y 均为 -100~100 的模拟量，后端按这两个分量算出底盘各轮速度
+     */
+    private fun sendMotion(x: Int, y: Int) {
+        val url = "${loadBaseUrl()}/car/motion?x=$x&y=$y"
+        if (!checkUrl(url)) return
+
+        val emptyBody = "".toRequestBody(null)
+
+        try {
+            val request = Request.Builder()
+                .url(url)
+                .post(emptyBody)
+                .build()
+
+            // 心跳是 20Hz，响应只更新状态栏文字，不弹 Toast，否则会盖满屏幕
+            client.newCall(request).enqueue(object : Callback {
+
+                override fun onFailure(call: Call, e: IOException) {
+                    runOnUiThread {
+                        tvStatus.text = "速度指令($x,$y)发送失败：${e.message}"
+                    }
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    response.use { res ->
+                        runOnUiThread {
+                            tvStatus.text = if (res.isSuccessful) {
+                                "速度($x,$y)发送成功"
+                            } else {
+                                "速度指令($x,$y)发送失败，状态码：${res.code}"
+                            }
+                        }
+                    }
+                }
+            })
+        } catch (e: Exception) {
+            tvStatus.text = "速度指令发送异常：${e.message}"
+        }
     }
 
     /**
@@ -1647,12 +1694,12 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             playbackHandler.removeCallbacksAndMessages(null)
         }
 
-        // 页面销毁时若摇杆还在按住拖动，停掉循环发送并补发一次 stop，
-        // 否则 Handler 会继续发指令、也会持有 Activity 引用
-        if (joystickCommand != null) {
-            joystickCommand = null
+        // 页面销毁时若摇杆还在按着，停掉心跳并补发一次 (0,0)，
+        // 否则 Handler 会继续发速度指令、也会持有 Activity 引用，小车还会保持原来的速度跑
+        if (isJoystickActive) {
+            isJoystickActive = false
             joystickHandler.removeCallbacks(joystickTask)
-            sendCommand("stop")
+            sendMotion(0, 0)
         }
         joystickHandler.removeCallbacksAndMessages(null)
 
